@@ -14,13 +14,21 @@ Produce `charts/<app>/Chart.yaml` (wrapper) and `charts/<app>/values.yaml`
 
 If the user gave a repo URL, use it. Otherwise search:
 
-- `helm search hub <term> --max-col-width 0` — searches ArtifactHub.
+- `helm search hub <term> --max-col-width 0` — searches ArtifactHub. Note: this
+  returns the ArtifactHub *page* URL, not the Helm repo URL. Get the actual
+  `repository.url` from the ArtifactHub API or the chart's ArtifactHub page
+  ("Install" instructions).
 - Or query the ArtifactHub REST API for the canonical repo URL and versions —
   see `reference/artifacthub-api.md`. Use WebFetch; no API key needed.
 
 Prefer the **official / vendor** repo over re-packagers. Record the
 `repository` URL (the Helm repo, e.g. `https://charts.bitnami.com/bitnami`, not
 the ArtifactHub page).
+
+If the chart's repo URL starts with `oci://`, `helm repo add` and
+`helm search repo` do **not** apply — list versions with
+`helm show chart oci://<registry>/<chart> --version <v>` probing, or use the
+ArtifactHub API (`reference/artifacthub-api.md`), which lists `available_versions`.
 
 ## Step 2 — choose a version
 
@@ -34,13 +42,19 @@ the ArtifactHub page).
 ## Step 3 — pull upstream defaults
 
 ```bash
-helm show values <chart> --repo <repo-url> --version <version> > ./<app>-upstream-values.yaml
+# classic Helm repo:
+helm show values <chart> --repo <repo-url> --version <version> > "$(mktemp -d)/<app>-upstream-values.yaml"
+# oci:// chart (no --repo flag):
+helm show values oci://<registry>/<chart> --version <version> > "$(mktemp -d)/<app>-upstream-values.yaml"
 ```
+
+Write the scratch file to a temp dir (`$(mktemp -d)/...`, or any path outside the
+repo), not into the working tree. See `reference/artifacthub-api.md` for how to
+tell an `oci://` chart from a classic Helm repo.
 
 Read it. Identify the handful of keys that matter for a first deploy:
 image/tag (if you want to pin harder), ingress, persistence, resources,
-replica count, service type. **Do not** copy the whole file. Delete this scratch
-file when done.
+replica count, service type. **Do not** copy the whole file.
 
 ## Step 4 — write the wrapper
 
@@ -65,8 +79,9 @@ helm template charts/<app> | kubectl apply --dry-run=client -f -   # if a cluste
 ```
 
 All three must pass. `helm dependency build` writes `Chart.lock` and
-`charts/*.tgz` — add `charts/<app>/charts/` and `Chart.lock` handling per the
-repo's `.gitignore` (default: commit `Chart.lock`, ignore the `.tgz`).
+`charts/*.tgz`. Commit `Chart.yaml`, `values.yaml`, and `Chart.lock`. Never commit
+`charts/<app>/charts/` or `*.tgz` — the scaffolded `.gitignore` already excludes
+them.
 
 ## Step 6 — update the catalog inventory
 
