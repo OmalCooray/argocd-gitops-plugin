@@ -8,6 +8,8 @@
   "GITOPS_REPO_URL": "https://github.com/OmalCooray/data-platform-k8s-configs",
   "GITOPS_REPO_NAME": "data-platform-k8s-configs",
   "TARGET_REVISION": "master",
+  "DEFAULT_BRANCH": "master",
+  "GITHUB_OWNER": "OmalCooray",
   "ARGOCD_NAMESPACE": "argocd",
   "ARGOCD_CHART_VERSION": "7.7.0",
   "DEST_SERVER": "https://kubernetes.default.svc"

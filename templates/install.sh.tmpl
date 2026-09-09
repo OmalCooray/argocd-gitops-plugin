@@ -18,10 +18,11 @@ kubectl --context "${CONTEXT}" cluster-info >/dev/null
 
 echo ">> Installing/upgrading Argo CD (chart ${ARGOCD_CHART_VERSION}) into ${ARGOCD_NAMESPACE}"
 helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
-helm repo update argo >/dev/null
+helm repo update argo >/dev/null 2>&1 || helm repo update >/dev/null
 helm --kube-context "${CONTEXT}" upgrade --install argo-cd argo/argo-cd \
   --namespace "${ARGOCD_NAMESPACE}" --create-namespace \
   --version "${ARGOCD_CHART_VERSION}" \
+  --timeout 10m \
   --wait
 
 echo ">> Waiting for Argo CD CRDs to register"

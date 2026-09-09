@@ -16,6 +16,8 @@ Add a chart to `charts/<app>/` in the current GitOps repo.
 
 - CWD is a GitOps repo (`charts/` and `.claude/CLAUDE.md` exist).
 - Working tree is clean (or ask before proceeding).
+- If `charts/<app>/` already exists, stop — tell the user to pick a different
+  name or edit the existing entry directly.
 
 ## Steps
 
@@ -35,7 +37,10 @@ Add a chart to `charts/<app>/` in the current GitOps repo.
 6. Commit `charts/<app>/Chart.yaml`, `charts/<app>/values.yaml`,
    `charts/<app>/Chart.lock`. (Do not commit `charts/<app>/charts/*.tgz`.)
 7. Update `.claude/CLAUDE.md` catalog inventory table; commit that too.
-8. Push the branch and open a PR with `gh pr create`:
+8. Show the user the rendered file(s) and the drafted PR title + body, and ask
+   them to confirm before pushing. If they decline, leave the commits on the
+   local branch and stop.
+   Push the branch and open a PR with `gh pr create`:
    - title: `Add <app> to catalog (<chart> <version>)`
    - body: chart source, version, why this version, and the output of
      `helm template charts/<app> | head -60` in a fenced block.

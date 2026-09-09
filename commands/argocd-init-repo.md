@@ -20,6 +20,8 @@ Create a new Argo CD GitOps repository skeleton.
 
 ## Steps
 
+0. If the target directory exists and is non-empty (or already a git repo), stop
+   and ask the user how to proceed — never overwrite.
 1. Load skill `argocd-repo-conventions`.
 2. Create the directory tree:
    ```
@@ -37,11 +39,15 @@ Create a new Argo CD GitOps repository skeleton.
    ```
 3. Render from `${CLAUDE_PLUGIN_ROOT}/templates/`:
    - `root.yaml.tmpl` → `environments/<env>/root.yaml`
-     (vars: `ENV_NAME`, `ARGOCD_NAMESPACE`, `GITOPS_REPO_URL`, `TARGET_REVISION`,
+     (vars: `ENV_NAME`, `ARGOCD_NAMESPACE`, `GITOPS_REPO_URL`, `DEFAULT_BRANCH`,
      `DEST_SERVER`). `GITOPS_REPO_URL` = `https://github.com/<owner>/<name>`.
    - `gitops-README.md.tmpl` → `README.md` (vars: `GITOPS_REPO_NAME`, `ENV_NAME`).
-   - `gitops-CLAUDE.md.tmpl` → `.claude/CLAUDE.md` (all repo-fact vars).
-   - `CODEOWNERS.tmpl` → `CODEOWNERS`.
+   - `gitops-CLAUDE.md.tmpl` → `.claude/CLAUDE.md` (all repo-fact vars; note it
+     needs `DEFAULT_BRANCH` — the branch name — not `TARGET_REVISION`).
+   - `CODEOWNERS.tmpl` → `CODEOWNERS` (vars: `ENV_NAME`, `GITHUB_OWNER` — the
+     owner/org from input 2).
+
+   `DEFAULT_BRANCH` is the branch name from input 5 (default `master`).
 4. `.gitignore` content:
    ```
    charts/*/charts/

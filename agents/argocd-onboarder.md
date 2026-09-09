@@ -6,7 +6,7 @@ description: >-
   named environment, and open the PR — all in one delegated run. Trigger when the
   user says "onboard <app>", "add <app> and deploy it to <env>", or "get <app>
   running on <env>". Do NOT use for changes to an already-onboarded app.
-tools: Read, Write, Edit, Bash, Glob, Grep, WebFetch
+tools: Skill, Read, Write, Edit, Bash, Glob, Grep, WebFetch
 ---
 
 You onboard one application into the Argo CD GitOps repo in the current working
@@ -23,7 +23,8 @@ directory, from nothing to an open PR.
   force-push. Opening the PR with `gh` is the only outward action, and only after
   the local verification below passes.
 - If a required input is ambiguous (chart repo, version, destination namespace,
-  which environment), stop and ask — do not guess.
+  which environment), stop and ask — do not guess. (As a subagent, "ask" means:
+  stop and report back with the specific question.)
 
 ## Sequence
 
@@ -47,7 +48,10 @@ directory, from nothing to an open PR.
 8. Update `.claude/CLAUDE.md`: catalog inventory row + deployment matrix cell.
 9. Commit in logical chunks (catalog, deploy wiring, docs), each with the
    `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>` trailer.
-10. Push; `gh pr create` titled `Onboard <app> → <env>` with a body covering:
+10. Show the user the rendered file(s) and the drafted PR title + body, and ask
+    them to confirm before pushing. If they decline, leave the commits on the
+    local branch and stop.
+    Push; `gh pr create` titled `Onboard <app> → <env>` with a body covering:
     chart + version + why, the `helm template ... | head -80` preview, target
     revision (+ prod pin caveat), destination namespace, and post-merge note
     ("the <env> root app syncs this automatically").
