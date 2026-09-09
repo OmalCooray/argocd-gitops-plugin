@@ -1,0 +1,13 @@
+{
+  "_comment": "OPTIONAL: Akuity's Argo CD MCP server. The plugin's commands and agents work fully with the argocd/kubectl CLIs and do NOT need this. To enable: copy this file to .mcp.json in the plugin root, set ARGOCD_BASE_URL and ARGOCD_API_TOKEN in your environment, and restart Claude Code.",
+  "mcpServers": {
+    "argocd": {
+      "command": "npx",
+      "args": ["-y", "argocd-mcp@latest", "stdio"],
+      "env": {
+        "ARGOCD_BASE_URL": "${ARGOCD_BASE_URL}",
+        "ARGOCD_API_TOKEN": "${ARGOCD_API_TOKEN}"
+      }
+    }
+  }
+}

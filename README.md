@@ -52,12 +52,13 @@ cd data-platform-k8s-configs
 
 ## Optional: Argo CD MCP
 
-`.mcp.json` ships a disabled entry for
+`.mcp.json.example` ships the config for
 [Akuity's Argo CD MCP server](https://github.com/akuity/argocd-mcp). The plugin
-does not need it. To enable: remove the `"_disabled": true` line, set
-`ARGOCD_BASE_URL` and `ARGOCD_API_TOKEN` in your environment, restart Claude
-Code. Useful for richer interactive troubleshooting once the Phase 2 doctor
-agent lands.
+does not need it — every command and agent works with the `argocd`/`kubectl`
+CLIs. To enable it: copy `.mcp.json.example` to `.mcp.json` in the plugin root,
+set `ARGOCD_BASE_URL` and `ARGOCD_API_TOKEN` in your environment, and restart
+Claude Code. Useful for richer interactive troubleshooting once the Phase 2
+doctor agent lands.
 
 ## Design & roadmap
 

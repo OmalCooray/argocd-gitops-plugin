@@ -32,13 +32,13 @@ directory, from nothing to an open PR.
 2. Resolve chart: name, exact version, Helm repo URL (ArtifactHub via WebFetch if
    needed). Prefer official repos.
 3. `git switch -c onboard/<app>-<env>`.
-4. Scaffold catalog: render `Chart.yaml.tmpl` + `values.yaml.tmpl` into
+4. Scaffold catalog: render `${CLAUDE_PLUGIN_ROOT}/templates/Chart.yaml.tmpl` + `${CLAUDE_PLUGIN_ROOT}/templates/values.yaml.tmpl` into
    `charts/<app>/`. Pull upstream values, add only the minimal overrides needed
    for a first healthy deploy (resources, persistence, ingress off unless asked).
 5. Verify catalog: `helm dependency build charts/<app>` → `helm lint charts/<app>`
    → (if cluster reachable) `helm template charts/<app> | kubectl apply
    --dry-run=client -f -`. All must pass; fix and re-run until they do.
-6. Deploy wiring: render `application.yaml.tmpl` into
+6. Deploy wiring: render `${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl` into
    `environments/<env>/apps/<app>.yaml`; create
    `environments/<env>/values/<app>.yaml` (comment-only). Use the dev/prod
    `targetRevision` rule from `argocd-repo-conventions`.

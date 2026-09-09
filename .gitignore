@@ -2,6 +2,9 @@ node_modules/
 .DS_Store
 *.log
 
+# local MCP opt-in (see .mcp.json.example)
+.mcp.json
+
 # test artifacts
 tests/.out/
 tests/**/__pycache__/

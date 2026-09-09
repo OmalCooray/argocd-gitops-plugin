@@ -39,12 +39,11 @@ def test_manifest_declares_no_custom_component_paths():
         assert key not in data, f"unexpected custom path for {key}"
 
 
-def test_mcp_json_is_valid_and_argocd_disabled_by_default():
-    data = load(".mcp.json")
-    assert "argocd" in data["mcpServers"]
+def test_mcp_example_present_and_no_active_mcp_json():
+    # The Argo CD MCP server ships as an inert .example so Claude Code does not
+    # auto-spawn it. An active .mcp.json must NOT be committed.
+    assert not (ROOT / ".mcp.json").exists(), "committed .mcp.json would auto-start the MCP server"
+    data = load(".mcp.json.example")
     srv = data["mcpServers"]["argocd"]
-    # Disabled by default: our convention is the _disabled marker key set true.
-    assert srv.get("_disabled") is True
-    # No secrets inlined — only ${ENV} references.
     for v in srv.get("env", {}).values():
         assert v.startswith("${") and v.endswith("}")

@@ -34,16 +34,18 @@ the ArtifactHub page).
 ## Step 3 — pull upstream defaults
 
 ```bash
-helm show values <chart> --repo <repo-url> --version <version> > /tmp/<app>-upstream-values.yaml
+helm show values <chart> --repo <repo-url> --version <version> > ./<app>-upstream-values.yaml
 ```
 
 Read it. Identify the handful of keys that matter for a first deploy:
 image/tag (if you want to pin harder), ingress, persistence, resources,
-replica count, service type. **Do not** copy the whole file.
+replica count, service type. **Do not** copy the whole file. Delete this scratch
+file when done.
 
 ## Step 4 — write the wrapper
 
-Render `templates/Chart.yaml.tmpl` and `templates/values.yaml.tmpl` from the
+Render `${CLAUDE_PLUGIN_ROOT}/templates/Chart.yaml.tmpl` and
+`${CLAUDE_PLUGIN_ROOT}/templates/values.yaml.tmpl` from the
 plugin with: `APP_NAME`, `CHART_NAME`, `CHART_VERSION`, `CHART_REPO_URL`.
 
 The override file nests everything under the **chart name** (the dependency
