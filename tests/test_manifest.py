@@ -37,3 +37,14 @@ def test_manifest_declares_no_custom_component_paths():
     data = load(".claude-plugin/plugin.json")
     for key in ("commands", "agents", "skills", "hooks"):
         assert key not in data, f"unexpected custom path for {key}"
+
+
+def test_mcp_json_is_valid_and_argocd_disabled_by_default():
+    data = load(".mcp.json")
+    assert "argocd" in data["mcpServers"]
+    srv = data["mcpServers"]["argocd"]
+    # Disabled by default: our convention is the _disabled marker key set true.
+    assert srv.get("_disabled") is True
+    # No secrets inlined — only ${ENV} references.
+    for v in srv.get("env", {}).values():
+        assert v.startswith("${") and v.endswith("}")
