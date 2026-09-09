@@ -30,3 +30,21 @@ def test_every_placeholder_has_a_fixture_var(tmpl, _golden):
     template_text = (ROOT / tmpl).read_text(encoding="utf-8")
     missing = placeholders(template_text) - set(VARS)
     assert not missing, f"{tmpl} uses vars with no fixture value: {sorted(missing)}"
+
+
+TEXT_ONLY = [
+    "templates/values.yaml.tmpl",
+    "templates/install.sh.tmpl",
+    "templates/gitops-README.md.tmpl",
+    "templates/gitops-CLAUDE.md.tmpl",
+    "templates/CODEOWNERS.tmpl",
+]
+
+
+@pytest.mark.parametrize("tmpl", TEXT_ONLY)
+def test_text_template_fully_renders(tmpl):
+    template_text = (ROOT / tmpl).read_text(encoding="utf-8")
+    out = render(template_text, VARS)
+    assert "{{" not in out and "}}" not in out
+    missing = placeholders(template_text) - set(VARS)
+    assert not missing, f"{tmpl} uses vars with no fixture value: {sorted(missing)}"

@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-{{ ENV_NAME }}
+  namespace: {{ ARGOCD_NAMESPACE }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: {{ GITOPS_REPO_URL }}
+    targetRevision: {{ TARGET_REVISION }}
+    path: environments/{{ ENV_NAME }}/apps
+    directory:
+      recurse: false
+  destination:
+    server: {{ DEST_SERVER }}
+    namespace: {{ ARGOCD_NAMESPACE }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

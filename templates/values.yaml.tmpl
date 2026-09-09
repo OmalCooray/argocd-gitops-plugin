@@ -1,0 +1,8 @@
+# Overrides for the upstream chart "{{ CHART_NAME }}".
+# Everything nests under the dependency name so Helm routes it to the subchart.
+# Pull the upstream defaults with:
+#   helm show values {{ CHART_NAME }} --repo {{ CHART_REPO_URL }} --version {{ CHART_VERSION }}
+# then copy ONLY the keys you are changing under the block below.
+{{ CHART_NAME }}:
+  # image:
+  #   tag: "{{ CHART_VERSION }}"
