@@ -3,6 +3,10 @@
 # Pull the upstream defaults with:
 #   helm show values {{ CHART_NAME }} --repo {{ CHART_REPO_URL }} --version {{ CHART_VERSION }}
 # then copy ONLY the keys you are changing under the block below.
-{{ CHART_NAME }}:
-  # image:
-  #   tag: "{{ CHART_VERSION }}"
+#
+# Starts as an empty map ({}) so Helm has a valid (no-op) value for the subchart.
+# Replace {} with a real mapping when you add overrides, e.g.:
+#   {{ CHART_NAME }}:
+#     image:
+#       tag: "{{ CHART_VERSION }}"
+{{ CHART_NAME }}: {}
