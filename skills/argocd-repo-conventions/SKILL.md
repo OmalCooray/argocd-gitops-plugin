@@ -90,6 +90,9 @@ the upstream chart lacks (a `ServiceMonitor`, an `IngressRoute`, a
 - This is opt-in — `/argocd-add-chart` and `/argocd-deploy` never add templates.
   Use `/argocd-add-manifest`. Full mechanism and conventions:
   the `argocd-extra-manifests` skill.
+- Grafana dashboards for an app: `/argocd-add-dashboard` +
+  the `argocd-grafana-dashboards` skill (a normalized community dashboard JSON
+  under `charts/<app>/grafana-dashboards/`, rendered as a sidecar ConfigMap).
 
 ## Application manifest
 
