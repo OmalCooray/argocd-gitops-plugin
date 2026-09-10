@@ -1,0 +1,65 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "9.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" }
+  ],
+  "id": 12345,
+  "uid": "abc123def45",
+  "title": "Test App Overview",
+  "tags": ["test", "example"],
+  "timezone": "browser",
+  "schemaVersion": 30,
+  "version": 7,
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "type": "query",
+        "datasource": "${DS_PROMETHEUS}",
+        "query": "label_values(up, instance)",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Up (legacy string datasource)",
+      "type": "stat",
+      "datasource": "${DS_PROMETHEUS}",
+      "targets": [
+        { "expr": "up{instance=~\"$instance\"}", "datasource": "${DS_PROMETHEUS}" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Request rate (modern object datasource)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "abc123def45" },
+      "targets": [
+        {
+          "expr": "rate(http_requests_total[5m])",
+          "datasource": { "type": "prometheus", "uid": "abc123def45" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Inherits datasource (null)",
+      "type": "stat",
+      "datasource": null,
+      "targets": [{ "expr": "sum(up)" }]
+    }
+  ]
+}

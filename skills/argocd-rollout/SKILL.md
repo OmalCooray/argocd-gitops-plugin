@@ -101,6 +101,7 @@ short-lived `kubectl port-forward` (foreground, then kill it).
 | Worker/queue system (Airflow) | scheduler + triggerer heartbeats are recent in the health endpoint |
 | Operator (prometheus-operator, cert-manager) | it reconciled its CRs — the CRs report Ready, not just the operator pod |
 | Extra manifest (ServiceMonitor / PodMonitor / …) | it renders and the CRD accepts it; for a monitor, after sync the target appears in Prometheus `/api/v1/targets` and `up{...}` for the app returns 1 |
+| Grafana dashboard | after sync it appears in Grafana's `<app>` folder (`GET /api/search?query=<title>`, `folderTitle == <app>`) and its panels render data — open one, not "No data" |
 
 If a functional check fails while Argo CD says Healthy, that's a real finding —
 go back to step 3 with it.

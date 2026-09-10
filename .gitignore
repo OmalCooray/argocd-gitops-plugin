@@ -9,3 +9,7 @@ node_modules/
 tests/.out/
 tests/**/__pycache__/
 .pytest_cache/
+
+# python bytecode
+__pycache__/
+*.pyc
