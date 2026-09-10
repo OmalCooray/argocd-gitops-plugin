@@ -1,0 +1,69 @@
+{{- /*
+PodMonitor for {{ .Chart.Name }} — added by /argocd-add-manifest.
+Verified against monitoring.coreos.com/v1 (Prometheus Operator 0.7x–0.9x).
+
+Use a PodMonitor (not a ServiceMonitor) when the pods you want to scrape have no
+Service in front of them, or you want to scrape each pod directly.
+
+Requires: the PodMonitor CRD, installed by the `kube-prometheus-stack` app, at
+an earlier sync-wave.
+
+Values (charts/<app>/values.yaml, TOP-LEVEL key `podMonitor:`):
+  enabled            bool   — gate
+  name               string — default: the chart name
+  namespace          string — default: the app's namespace
+  labels             map    — extra labels
+  selectorLabels     map    — REQUIRED — labels of the POD(s) to scrape
+  namespaceSelector  list   — default: same namespace
+  port               string — REQUIRED — the NAMED container port
+  path               string — default /metrics
+  scheme             string — default http
+  interval           string — default 30s
+  scrapeTimeout      string — optional
+  honorLabels        bool   — default false
+  relabelings        list   — optional
+  metricRelabelings  list   — optional
+*/ -}}
+{{- if .Values.podMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ .Values.podMonitor.name | default .Chart.Name }}
+  {{- with .Values.podMonitor.namespace }}
+  namespace: {{ . }}
+  {{- end }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: argocd-gitops-plugin
+    {{- with .Values.podMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- toYaml (required "podMonitor.selectorLabels is required" .Values.podMonitor.selectorLabels) | nindent 6 }}
+  {{- with .Values.podMonitor.namespaceSelector }}
+  namespaceSelector:
+    matchNames:
+      {{- toYaml . | nindent 6 }}
+  {{- end }}
+  podMetricsEndpoints:
+    - port: {{ required "podMonitor.port (a NAMED container port) is required" .Values.podMonitor.port }}
+      path: {{ .Values.podMonitor.path | default "/metrics" }}
+      scheme: {{ .Values.podMonitor.scheme | default "http" }}
+      interval: {{ .Values.podMonitor.interval | default "30s" }}
+      {{- with .Values.podMonitor.scrapeTimeout }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+      {{- if .Values.podMonitor.honorLabels }}
+      honorLabels: true
+      {{- end }}
+      {{- with .Values.podMonitor.relabelings }}
+      relabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podMonitor.metricRelabelings }}
+      metricRelabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
