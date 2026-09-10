@@ -1,6 +1,6 @@
 ---
 name: argocd-grafana-dashboards
-description: Import an open-source Grafana dashboard into an app's wrapper chart — commit the JSON under charts/<app>/grafana-dashboards/, normalize its datasource references, and render it as a ConfigMap the kube-prometheus-stack Grafana sidecar loads into a per-app folder. Load when an app is scraped but has no dashboard, or the user asks to add / import a Grafana dashboard.
+description: Import an open-source Grafana dashboard into an app's wrapper chart — commit the JSON under charts/<app>/grafana-dashboards/, normalize its datasource references, and render it as a ConfigMap the kube-prometheus-stack Grafana sidecar loads into a per-app folder. Load when the user asks to add or import a Grafana dashboard for an app (a grafana.com id/URL or a dashboard JSON), or runs /argocd-add-dashboard. Opt-in — dashboards are never added automatically.
 ---
 
 # Grafana dashboards for an app
@@ -48,7 +48,9 @@ data:
 ```
 
 - Gate: `grafanaDashboards.enabled` (nil-safe). The command sets it `true`.
-- Folder: `grafanaDashboards.folder`, default the chart name → one folder per app.
+- Folder: `grafanaDashboards.folder`, default the chart name (`.Chart.Name`) →
+  one folder per app. This plugin's convention is that the chart directory name
+  == the Application name, so the folder is the app name.
 - The rendered ConfigMap must stay under 1 MB (etcd). If it exceeds it: split the
   dashboards across two ConfigMaps, or trim unused rows. See
   `reference/datasource-normalization.md`.
@@ -61,7 +63,7 @@ A working ServiceMonitor / PodMonitor and metrics visible in Prometheus
 (`/api/v1/query`). No metrics → **stop**. The dashboard would be all "No data".
 Adding a ServiceMonitor is `/argocd-add-manifest`. Provisioning an exporter for
 an app that emits nothing (Metabase, a bare MySQL) is a separate workflow
-(`argocd-exporters` / `/argocd-observe`).
+(`argocd-exporters` / `/argocd-observe` — planned, spec #2b, not yet built).
 
 ## Choosing a dashboard
 
@@ -75,7 +77,7 @@ an app that emits nothing (Metabase, a bare MySQL) is a separate workflow
 
 ## Steps
 
-1. `python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py <source> > charts/<app>/grafana-dashboards/<slug>.json`
+1. `mkdir -p charts/<app>/grafana-dashboards && python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>" > charts/<app>/grafana-dashboards/<slug>.json`
    — `<source>` = a grafana.com id (`12345` / `12345:8`), an `https://` URL, or a
    local `.json` path.
 2. **Sanity-check the metric names.** Grep the JSON for `expr` / metric names and

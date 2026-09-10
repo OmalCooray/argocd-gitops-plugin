@@ -79,9 +79,9 @@ Phase 2 shipped: `values-review` / `/argocd-review-values`,
 `argocd-rollout` / `/argocd-sync` (drive-to-healthy loop).
 Phase 3: `/argocd-add-env`, `/argocd-promote`, secrets.
 
-Next: `argocd-exporters` / `/argocd-observe` (spec #2b) — provision an exporter
-for apps that emit no metrics (Metabase, bare MySQL) and tie exporter →
-ServiceMonitor → dashboard into one command.
+Next (planned, not yet built): `argocd-exporters` / `/argocd-observe` (spec #2b)
+— provision an exporter for apps that emit no metrics (Metabase, bare MySQL) and
+tie exporter → ServiceMonitor → dashboard into one command.
 
 ## Development
 

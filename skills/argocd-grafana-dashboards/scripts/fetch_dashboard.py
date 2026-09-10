@@ -46,26 +46,40 @@ def _http_get(url: str) -> bytes:
         return resp.read()
 
 
+def _unwrap(obj):
+    """Grafana HTTP-API exports wrap the dashboard: {"dashboard": {...}, "meta": {...}}."""
+    if isinstance(obj, dict) and isinstance(obj.get("dashboard"), dict):
+        return obj["dashboard"]
+    return obj
+
+
 def load(source: str) -> tuple[dict, str]:
     """Return (dashboard, origin_label)."""
     if re.fullmatch(r"\d+(:\d+)?", source):
         gid, _, rev = source.partition(":")
         if not rev:
             meta = json.loads(_http_get(f"{GCOM}/{gid}"))
-            rev = str(meta["revision"])
+            revision = meta.get("revision")
+            if revision is None:
+                raise DashboardError(
+                    f"grafana.com returned no revision for dashboard {gid}"
+                )
+            rev = str(revision)
         raw = _http_get(f"{GCOM}/{gid}/revisions/{rev}/download")
-        return json.loads(raw), f"grafana.com/dashboards/{gid} revision {rev}"
+        return _unwrap(json.loads(raw)), f"grafana.com/dashboards/{gid} revision {rev}"
     if source.startswith(("http://", "https://")):
-        return json.loads(_http_get(source)), source
+        return _unwrap(json.loads(_http_get(source))), source
     with open(source, encoding="utf-8") as fh:
-        return json.load(fh), source
+        return _unwrap(json.load(fh)), source
 
 
 def _prom_input_names(dash: dict) -> set[str]:
     return {
         i["name"]
         for i in dash.get("__inputs", [])
-        if i.get("type") == "datasource" and i.get("pluginId") == "prometheus"
+        if i.get("type") == "datasource"
+        and i.get("pluginId") == "prometheus"
+        and i.get("name")
     }
 
 
@@ -73,7 +87,12 @@ def _fix_ds(ds, prom_inputs: set[str]):
     if ds is None:
         return ds
     if isinstance(ds, str):
-        if _DS_INPUT_RE.match(ds) or ds in prom_inputs or ds.lower() == "prometheus":
+        m = re.fullmatch(r"\$\{(\w+)\}", ds)
+        if (
+            _DS_INPUT_RE.match(ds)
+            or (m and m.group(1) in prom_inputs)
+            or ds.lower() == "prometheus"
+        ):
             return "${%s}" % DS_VAR
         return ds  # already a var ref, or a non-prometheus named datasource
     if isinstance(ds, dict):
@@ -84,16 +103,16 @@ def _fix_ds(ds, prom_inputs: set[str]):
 
 
 def normalize(dash: dict, origin: str) -> dict:
-    if "prometheus" not in json.dumps(dash).lower():
-        raise DashboardError("dashboard has no Prometheus datasource references")
-
     prom_inputs = _prom_input_names(dash)
     for key in ("__inputs", "__requires", "id", "uid"):
         dash.pop(key, None)
 
     tmpl = dash.setdefault("templating", {})
     tlist = tmpl.setdefault("list", [])
-    if not any(isinstance(v, dict) and v.get("name") == DS_VAR for v in tlist):
+    had_ds_var = any(
+        isinstance(v, dict) and v.get("name") == DS_VAR for v in tlist
+    )
+    if not had_ds_var:
         tlist.insert(0, {
             "name": DS_VAR,
             "type": "datasource",
@@ -104,10 +123,16 @@ def normalize(dash: dict, origin: str) -> dict:
             "refresh": 1,
         })
 
+    rewrites = 0
+
     def walk(node):
+        nonlocal rewrites
         if isinstance(node, dict):
             if "datasource" in node:
-                node["datasource"] = _fix_ds(node["datasource"], prom_inputs)
+                fixed = _fix_ds(node["datasource"], prom_inputs)
+                if fixed != node["datasource"]:
+                    rewrites += 1
+                node["datasource"] = fixed
             for value in node.values():
                 walk(value)
         elif isinstance(node, list):
@@ -115,11 +140,19 @@ def normalize(dash: dict, origin: str) -> dict:
                 walk(value)
 
     walk(dash)
+    if rewrites == 0 and not had_ds_var:
+        raise DashboardError(
+            "no Prometheus datasource references found — not a fit for this plugin"
+        )
     dash["__source"] = f"{origin}, fetched {date.today().isoformat()}"
     return dash
 
 
 def main(argv: list[str]) -> int:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
     if len(argv) != 2:
         sys.stderr.write(__doc__)
         return 2

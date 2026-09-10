@@ -61,6 +61,7 @@ A dashboard with **no** prometheus reference anywhere → the script exits non-z
       sidecar:
         dashboards:
           folderAnnotation: grafana_folder
+          searchNamespace: ALL
           provider:
             foldersFromFilesStructure: true
   ```
@@ -69,6 +70,15 @@ A dashboard with **no** prometheus reference anywhere → the script exits non-z
   this is why — add it to `charts/kube-prometheus-stack/values.yaml` (or the env
   overlay) and re-sync that app. A Grafana pod restart is needed for the sidecar
   env change to take effect.
+- **namespace — needs enabling.** By default the k8s-sidecar only watches
+  ConfigMaps in **Grafana's own namespace** (e.g. `monitoring`). This plugin's
+  app dashboard ConfigMaps live in the **app's** namespace, so the sidecar must
+  be told to watch all namespaces:
+  `grafana.sidecar.dashboards.searchNamespace: ALL` (in the block above).
+  kube-prometheus-stack often ships this defaulted to `ALL` already — verify with
+  `kubectl -n monitoring get deploy kube-prometheus-stack-grafana -o yaml | grep -A2 SEARCH`
+  (or inspect the sidecar container's env). If it is not `ALL`, per-app
+  ConfigMaps are silently ignored.
 - Each **data key** in the ConfigMap becomes one dashboard. Multi-key ConfigMaps
   are fine.
 - The `datasource` template variable resolves against Grafana's default

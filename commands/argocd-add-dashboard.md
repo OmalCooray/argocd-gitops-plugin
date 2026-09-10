@@ -33,7 +33,7 @@ the PR, end with a summary.
      (`/api/v1/query?query={job=~".*<app>.*"}` or a metric you expect).
    No metrics → **STOP**: report the dashboard would be empty; point at
    `/argocd-add-manifest` (to add a ServiceMonitor) or the exporter workflow
-   (`/argocd-observe`, separate) if the app emits nothing.
+   (`/argocd-observe`, separate — planned) if the app emits nothing.
 3. Branch `git switch -c add-dashboard/<app>-<slug>`.
 4. Fetch + normalize:
    ```bash
