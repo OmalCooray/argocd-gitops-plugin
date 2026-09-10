@@ -1,0 +1,5 @@
+# Python deps for the test suite and the smoke scripts.
+# pytest — the unit tests (tests/test_*.py)
+# pyyaml — used by the smoke scripts' inline python (import yaml)
+pytest>=8,<10
+pyyaml>=6,<7
