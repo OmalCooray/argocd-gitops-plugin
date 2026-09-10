@@ -1,5 +1,7 @@
 # Prometheus Operator — ServiceMonitor / PodMonitor rules
 
+<!-- owner: argocd-extra-manifests skill · last reviewed: 2026-09-10 -->
+
 ## How the operator picks up a ServiceMonitor
 
 The `Prometheus` CR has `spec.serviceMonitorSelector` and

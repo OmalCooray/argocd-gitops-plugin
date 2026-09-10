@@ -1,6 +1,6 @@
 {
   "name": "argocd-gitops-plugin",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "Scaffold and operate an Argo CD GitOps repo: bootstrap Argo CD, onboard Helm charts into a catalog, deploy apps to environments via app-of-apps, and audit drift.",
   "author": {
     "name": "Omal Cooray",

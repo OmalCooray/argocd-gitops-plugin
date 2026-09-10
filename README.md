@@ -1,5 +1,7 @@
 # argocd-gitops-plugin
 
+[![ci](https://github.com/OmalCooray/argocd-gitops-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/OmalCooray/argocd-gitops-plugin/actions/workflows/ci.yml)
+
 A Claude Code plugin for running applications on Argo CD with GitOps. It
 scaffolds and operates a repo with a **catalog** of Helm wrapper charts and one
 folder per **environment**, wired together with the app-of-apps pattern.
@@ -73,7 +75,11 @@ doctor agent lands.
 
 ## Design & roadmap
 
-See `docs/superpowers/specs/2026-09-10-argocd-gitops-plugin-design.md`.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap and design doc.
+[Supported tools & versions](docs/SUPPORT.md) — tool matrix and OS coverage.
+[Contributing](docs/CONTRIBUTING.md) — dev flow, tests, release process.
+[Changelog](CHANGELOG.md) — release history.
+
 Phase 2 shipped: `values-review` / `/argocd-review-values`,
 `argocd-troubleshooting` / `/argocd-doctor`,
 `argocd-rollout` / `/argocd-sync` (drive-to-healthy loop).

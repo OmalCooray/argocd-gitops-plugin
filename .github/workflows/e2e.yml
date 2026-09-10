@@ -1,0 +1,36 @@
+name: e2e
+
+# Slow (~8 min): spins a kind cluster and installs Argo CD. Not on every PR.
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+jobs:
+  argocd-e2e:
+    name: argocd on kind
+    # only run the PR trigger when the 'e2e' label is applied
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.label.name == 'e2e'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r tests/requirements.txt
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: e2e
+      - name: argocd_e2e
+        shell: bash
+        run: bash tests/smoke/argocd_e2e.sh
