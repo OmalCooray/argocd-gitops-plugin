@@ -25,11 +25,22 @@ charts/<app>/
 ## Conventions
 
 - **One file per resource kind**, kebab-named (`templates/servicemonitor.yaml`).
-- **The wrapper's base `values.yaml` MUST set `<chart>.fullnameOverride: <app>`.**
-  A parent chart cannot call a subchart's `_helpers.tpl`, so this is how your
-  templates reference chart-generated Services / pods / labels — by the
-  predictable name `<app>-<component>`. If it is missing, add it (and warn the
-  user: it can rename resources on the next sync).
+- **Your templates must be able to name chart-generated resources.** A parent
+  chart cannot call a subchart's `_helpers.tpl`, so you reference Services / pods
+  / labels by a predictable name. Two ways that name becomes predictable:
+  1. **Argo CD sets the Helm release name to the Application name** (`<app>`).
+     Charts that derive names from the release name (Airflow, kube-prometheus-
+     stack, many others) then produce `<app>-<component>` in-cluster with no
+     configuration. Confirm by rendering with the release name:
+     `helm template <app> charts/<app> ...`.
+  2. If the chart **supports `fullnameOverride`** (Bitnami-style, groundhog2k,
+     Metabase, …) set `<chart>.fullnameOverride: <app>` in the wrapper's base
+     `values.yaml` to pin it. Adding it can rename resources on the next sync if
+     the chart wasn't already producing that name — warn the user.
+  Either way, always `helm template <app> charts/<app>` (release name `<app>`,
+  not the default `release-name`) and read the actual names before writing the
+  manifest. Never set `fullnameOverride` on a chart that ignores it — it is a
+  silent no-op that misleads the next reader.
 - **Gate every added manifest on a values flag** — `{{- if .Values.serviceMonitor.enabled }}`
   … `{{- end }}` — default sensible (monitors on), overridable per environment
   through the `$values` overlay in `environments/<env>/values/<app>.yaml`.
@@ -53,16 +64,19 @@ Available: `.Values` (including `.Values.<chart>.*`), `.Release.Name`,
 
 ## Authoring checklist
 
-1. Confirm `<chart>.fullnameOverride: <app>` is in `charts/<app>/values.yaml`;
-   add it if missing.
-2. `helm template charts/<app>` once. Read the real Service names, the **named**
-   ports (a ServiceMonitor `endpoints[].port` must be a *name*, not a number),
-   and the pod/Service labels the new manifest must select.
-3. For `servicemonitor` / `podmonitor`: copy the matching
+1. `helm template <app> charts/<app>` once (release name `<app>`, matching what
+   Argo CD uses — not the default `release-name`). Read the real Service names,
+   the **named** ports (a ServiceMonitor `endpoints[].port` must be a *name*, not
+   a number), and the pod/Service labels the new manifest must select. If the
+   names are not `<app>-<component>` and the chart supports `fullnameOverride`,
+   set `<chart>.fullnameOverride: <app>` in `charts/<app>/values.yaml` (warn: may
+   rename on next sync); if the chart ignores `fullnameOverride`, use the names
+   as rendered.
+2. For `servicemonitor` / `podmonitor`: copy the matching
    `references/starters/<kind>.yaml` into `charts/<app>/templates/` verbatim —
-   it is fully values-driven — then write the values stanza (step 4). For any
+   it is fully values-driven — then write the values stanza (step 3). For any
    other kind: author the template against these conventions.
-4. Add the gating values stanza to `charts/<app>/values.yaml` as a **top-level**
+3. Add the gating values stanza to `charts/<app>/values.yaml` as a **top-level**
    key (not nested under the subchart), e.g.:
    ```yaml
    serviceMonitor:
@@ -72,11 +86,12 @@ Available: `.Values` (including `.Values.<chart>.*`), `.Release.Name`,
      path: /metrics
      interval: 30s
    ```
-5. Never `include` a subchart helper (step "Template context").
-6. Verify: `helm dependency build charts/<app>` → `helm template charts/<app>`
-   renders your manifest. If a cluster with the CRD is reachable:
-   `helm template charts/<app> | kubectl apply --dry-run=server -f -`.
-7. Bump `charts/<app>/Chart.yaml` `version`.
+4. Never `include` a subchart helper (step "Template context").
+5. Verify: `helm dependency build charts/<app>` →
+   `helm template <app> charts/<app>` renders your manifest. If a cluster with
+   the CRD is reachable:
+   `helm template <app> charts/<app> | kubectl apply --dry-run=server -f -`.
+6. Bump `charts/<app>/Chart.yaml` `version`.
 
 ## References
 

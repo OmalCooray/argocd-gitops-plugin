@@ -29,39 +29,43 @@ the PR, end with a summary.
 1. Load skills `argocd-extra-manifests` and `argocd-repo-conventions`. Follow the
    authoring checklist.
 2. Branch: `git switch -c add-manifest/<app>-<kind-slug>`.
-3. Confirm `charts/<app>/values.yaml` sets `<chart>.fullnameOverride: <app>`.
-   If missing, add it and tell the user (it can rename resources on next sync —
-   they should review the diff and plan to sync soon after merge).
-4. `helm dependency build charts/<app>` then `helm template charts/<app>` once.
-   Read the Service names, the **named** ports, and the Service/pod labels the
-   new manifest must target.
+3. `helm dependency build charts/<app>` then
+   `helm template <app> charts/<app>` once (release name `<app>` — Argo CD uses
+   the Application name as the release name; the default `release-name` gives
+   wrong names). Read the real Service names, the **named** ports, and the
+   Service/pod labels the new manifest must target.
+   - If the names are not `<app>-<component>`: if the chart supports
+     `fullnameOverride`, add `<chart>.fullnameOverride: <app>` to
+     `charts/<app>/values.yaml` (tell the user — may rename on next sync). If the
+     chart ignores it (Airflow, kube-prometheus-stack, …), use the names as
+     rendered — do not add a no-op `fullnameOverride`.
    - For `servicemonitor` / `podmonitor`: if no Service/pod exposes a **named**
      metrics port and the app serves no `/metrics`, STOP — report that the app
      exposes no scrapeable metrics (needs an exporter or the chart's metrics
      option first; that's the `argocd-observability` workflow, not this command).
-5. Scaffold:
+4. Scaffold:
    - starter kind: copy
      `${CLAUDE_PLUGIN_ROOT}/skills/argocd-extra-manifests/references/starters/<kind>.yaml`
      → `charts/<app>/templates/<kind>.yaml` verbatim.
    - free-text kind: author `charts/<app>/templates/<slug>.yaml` from the
      `argocd-extra-manifests` checklist (gated, no subchart `_helpers`).
-6. Add the gating values stanza to `charts/<app>/values.yaml` as a **top-level**
+5. Add the gating values stanza to `charts/<app>/values.yaml` as a **top-level**
    key (not nested under the subchart) — for a ServiceMonitor:
    `serviceMonitor: {enabled: true, selectorLabels: {...}, port: <name>, path: /metrics, interval: 30s}`
-   with `selectorLabels` / `port` filled from step 4.
-7. CRD check: if the kind needs a CRD (ServiceMonitor/PodMonitor → Prometheus
+   with `selectorLabels` / `port` filled from step 3.
+6. CRD check: if the kind needs a CRD (ServiceMonitor/PodMonitor → Prometheus
    Operator), verify the owning app (`kube-prometheus-stack`) is in
    `environments/<env>/apps/` and its sync-wave is lower than `<app>`'s. If not,
    report it and stop before committing.
-8. Verify:
+7. Verify:
    ```bash
-   helm template charts/<app>            # your manifest renders
-   helm template charts/<app> | kubectl apply --dry-run=server -f -   # CRD accepts it (if a cluster is reachable)
+   helm template <app> charts/<app>            # your manifest renders
+   helm template <app> charts/<app> | kubectl apply --dry-run=server -f -   # CRD accepts it (if a cluster is reachable)
    ```
-9. Bump `charts/<app>/Chart.yaml` `version`.
-10. Checkpoint → commit → push → `gh pr create` (title `Add <kind> to <app>`,
-    body: what it selects/scrapes, the values stanza, `helm template … | head`).
-11. Suggest `/argocd-sync <app> <env>` to roll it out. For a ServiceMonitor /
+8. Bump `charts/<app>/Chart.yaml` `version`.
+9. Checkpoint → commit → push → `gh pr create` (title `Add <kind> to <app>`,
+   body: what it selects/scrapes, the values stanza, `helm template … | head`).
+10. Suggest `/argocd-sync <app> <env>` to roll it out. For a ServiceMonitor /
     PodMonitor, name the functional check: after sync, the target shows in
     Prometheus `/api/v1/targets` and `up{...}` returns 1.
 

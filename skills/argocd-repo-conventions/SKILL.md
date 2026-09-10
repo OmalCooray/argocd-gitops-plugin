@@ -64,8 +64,11 @@ Get upstream defaults with `helm show values <chart> --repo <url> --version <v>`
 (for `oci://` charts: `helm show values oci://<registry>/<chart> --version <v>`,
 no `--repo`) and copy only the keys you change.
 
-Always set `<chart-name>.fullnameOverride: <app>` — it keeps generated resource
-names predictable and is required if you add your own templates.
+Set `<chart-name>.fullnameOverride: <app>` when the chart supports it — it keeps
+generated resource names a predictable `<app>-<component>`. Charts that derive
+names from the Helm release name (Airflow, kube-prometheus-stack, …) already
+produce `<app>-<component>` because Argo CD sets the release name to the
+Application name; for those, `fullnameOverride` is a no-op — don't add it.
 
 ## Custom manifests
 
@@ -74,10 +77,12 @@ Helm renders them alongside the pinned upstream dependency, so you add resources
 the upstream chart lacks (a `ServiceMonitor`, an `IngressRoute`, a
 `NetworkPolicy`) without forking it.
 
-- **Mandatory when you do this:** the wrapper's base `values.yaml` sets
-  `<chart>.fullnameOverride: <app>`, so upstream-generated names are a
-  predictable `<app>-<component>` your templates can target (a parent chart can't
-  call a subchart's `_helpers`).
+- Your templates target chart-generated resources by name (a parent chart can't
+  call a subchart's `_helpers`). Names are predictable either because Argo CD's
+  release name = the Application name (many charts) or via
+  `<chart>.fullnameOverride: <app>` (charts that support it). Always
+  `helm template <app> charts/<app>` (release name `<app>`) and read the real
+  names first.
 - Every added manifest is gated on a top-level values flag (`serviceMonitor.enabled`).
 - A `templates/` change bumps `charts/<app>/Chart.yaml` `version`.
 - This is opt-in — `/argocd-add-chart` and `/argocd-deploy` never add templates.
