@@ -9,7 +9,11 @@ description: Import an open-source Grafana dashboard into an app's wrapper chart
 
 kube-prometheus-stack's Grafana runs a sidecar that watches for ConfigMaps
 labelled `grafana_dashboard: "1"` and loads each data key as a dashboard; the
-annotation `grafana_folder: <name>` places it in a folder.
+annotation `grafana_folder: <name>` places it in a folder — **once the sidecar is
+told to honor that annotation** (a one-time setting on the
+`kube-prometheus-stack` wrapper chart; see `reference/datasource-normalization.md`
+→ "What the kube-prometheus-stack sidecar does"). Without it, dashboards land in
+Grafana's root folder.
 
 You commit the dashboard JSON under the wrapper chart and render one ConfigMap:
 

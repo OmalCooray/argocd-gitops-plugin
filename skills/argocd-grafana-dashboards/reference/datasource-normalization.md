@@ -49,16 +49,32 @@ A dashboard with **no** prometheus reference anywhere → the script exits non-z
 
 ## What the kube-prometheus-stack sidecar does
 
-From the chart's `grafana.sidecar.dashboards` defaults:
 - **selector:** ConfigMaps/Secrets with label `grafana_dashboard: "1"`
-  (`sidecar.dashboards.label` / `labelValue`).
-- **folder:** `sidecar.dashboards.folderAnnotation: grafana_folder` — the
-  ConfigMap annotation names the Grafana folder; `provider.foldersFromFilesStructure: true`
-  lets the sidecar create it.
+  (`grafana.sidecar.dashboards.label` / `labelValue`) — on by default.
+- **folder — needs enabling.** By default the sidecar drops every dashboard in
+  Grafana's root/"General" folder and **ignores the `grafana_folder` annotation**.
+  For the per-app folders this plugin's ConfigMaps ask for, the
+  `kube-prometheus-stack` wrapper chart must set:
+  ```yaml
+  kube-prometheus-stack:
+    grafana:
+      sidecar:
+        dashboards:
+          folderAnnotation: grafana_folder
+          provider:
+            foldersFromFilesStructure: true
+  ```
+  This is a one-time change to the **monitoring platform's** wrapper chart, not
+  the app's. If `/argocd-add-dashboard` finds the dashboard loads into no folder,
+  this is why — add it to `charts/kube-prometheus-stack/values.yaml` (or the env
+  overlay) and re-sync that app. A Grafana pod restart is needed for the sidecar
+  env change to take effect.
 - Each **data key** in the ConfigMap becomes one dashboard. Multi-key ConfigMaps
   are fine.
 - The `datasource` template variable resolves against Grafana's default
   Prometheus datasource on first load; a viewer can switch it.
+- Grafana's `/api/search` returns folders too (`type: dash-folder`) — filter
+  `type=dash-db` to list only dashboards.
 
 ## The 1 MB limit
 

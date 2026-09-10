@@ -60,8 +60,14 @@ the PR, end with a summary.
    <app>`; body: the grafana.com source + revision, the folder, the metrics /
    exporter it needs).
 10. Suggest `/argocd-sync <app> <env>`. Functional check: after sync, Grafana
-    `/api/search?query=<title>` returns it with `folderTitle == <app>`, and its
-    panels render data (open one — not "No data").
+    `/api/search?type=dash-db&query=<title>` returns it with
+    `folderTitle == <app>`, and its panels render data (open one — not "No data").
+    - Dashboard loads but `folderTitle` is null / it's in the root: the
+      kube-prometheus-stack Grafana sidecar needs
+      `grafana.sidecar.dashboards.provider.foldersFromFilesStructure: true` +
+      `folderAnnotation: grafana_folder` — a one-time change to
+      `charts/kube-prometheus-stack/` (see `argocd-grafana-dashboards` →
+      `reference/datasource-normalization.md`). Grafana pod restart needed after.
 
 ## Notes
 
