@@ -1,0 +1,10 @@
+apiVersion: v2
+name: {{ APP_NAME }}
+description: Wrapper chart for {{ APP_NAME }} ({{ CHART_NAME }} {{ CHART_VERSION }})
+type: application
+version: 0.1.0
+appVersion: "{{ CHART_VERSION }}"
+dependencies:
+  - name: {{ CHART_NAME }}
+    version: {{ CHART_VERSION }}
+    repository: {{ CHART_REPO_URL }}

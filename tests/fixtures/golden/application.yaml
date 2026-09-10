@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: podinfo
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/OmalCooray/data-platform-k8s-configs
+      targetRevision: master
+      path: charts/podinfo
+      helm:
+        valueFiles:
+          - $values/environments/data-platform/values/podinfo.yaml
+    - repoURL: https://github.com/OmalCooray/data-platform-k8s-configs
+      targetRevision: master
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: podinfo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

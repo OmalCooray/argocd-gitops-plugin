@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: {{ APP_NAME }}
+  namespace: {{ ARGOCD_NAMESPACE }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: {{ GITOPS_REPO_URL }}
+      targetRevision: {{ TARGET_REVISION }}
+      path: charts/{{ APP_NAME }}
+      helm:
+        valueFiles:
+          - $values/environments/{{ ENV_NAME }}/values/{{ APP_NAME }}.yaml
+    - repoURL: {{ GITOPS_REPO_URL }}
+      targetRevision: {{ TARGET_REVISION }}
+      ref: values
+  destination:
+    server: {{ DEST_SERVER }}
+    namespace: {{ NAMESPACE }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
