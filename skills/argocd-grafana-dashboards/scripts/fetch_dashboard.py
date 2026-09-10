@@ -118,7 +118,9 @@ def normalize(dash: dict, origin: str) -> dict:
             "type": "datasource",
             "query": "prometheus",
             "label": "Datasource",
-            "current": {},
+            # resolve to the org's default datasource on load — without this the
+            # variable is unset and every panel renders "No data"
+            "current": {"text": "default", "value": "default"},
             "hide": 0,
             "refresh": 1,
         })
