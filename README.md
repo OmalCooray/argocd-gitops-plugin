@@ -4,7 +4,7 @@ A Claude Code plugin for running applications on Argo CD with GitOps. It
 scaffolds and operates a repo with a **catalog** of Helm wrapper charts and one
 folder per **environment**, wired together with the app-of-apps pattern.
 
-## What it does (Phase 1)
+## What it does
 
 | Command | Purpose |
 |---------|---------|
@@ -12,6 +12,7 @@ folder per **environment**, wired together with the app-of-apps pattern.
 | `/argocd-bootstrap [kube-context]` | Generate `bootstrap/install.sh` — installs Argo CD and applies the root app. |
 | `/argocd-add-chart <app> [version]` | Research an upstream Helm chart, pin it, scaffold `charts/<app>/`, open a PR. |
 | `/argocd-deploy <app> <env>` | Wire a catalog app into an environment (`Application` + values overlay), open a PR. |
+| `/argocd-review-values <app> [env] [--profile dev\|prod] [--write]` | Check a chart's values against a dev/prod readiness rubric; optionally open a PR with a hardened overlay. |
 | `/argocd-audit [env]` | Read-only drift report: repo vs live Argo CD. |
 
 Plus the `argocd-onboarder` agent, which does add-chart -> deploy -> PR in one run.
@@ -63,8 +64,9 @@ doctor agent lands.
 ## Design & roadmap
 
 See `docs/superpowers/specs/2026-09-10-argocd-gitops-plugin-design.md`.
-Phase 2: `values-review`, `/argocd-doctor`. Phase 3: `/argocd-add-env`,
-`/argocd-promote`, secrets.
+Shipped from Phase 2: `values-review` / `/argocd-review-values`.
+Still to come — Phase 2: `/argocd-doctor` + `argocd-troubleshooting`.
+Phase 3: `/argocd-add-env`, `/argocd-promote`, secrets.
 
 ## Development
 
