@@ -68,3 +68,8 @@ Wire an existing catalog chart into an environment.
 
 - Never `kubectl apply` the Application to a live cluster from here — merging the
   PR is the deploy. Applying by hand is the user's decision.
+- **Ordering between apps:** if `<app>` depends on another app in the same env
+  (e.g. Airflow needs its external database first), add
+  `argocd.argoproj.io/sync-wave: "-1"` (lower = earlier) under
+  `metadata.annotations` of the dependency's `Application`, so the root app syncs
+  it before the dependent one.
