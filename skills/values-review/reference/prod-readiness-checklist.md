@@ -131,7 +131,33 @@ plain deploy hangs on "Waiting for migrations" without these):
   and the worker Deployment — four fewer stateful things to run. Good default for
   a first prod cut; set `executor: KubernetesExecutor` and `redis.enabled: false`.
 
-## MySQL for Airflow — the gotchas
+## Sharing one MySQL across apps
+
+A single MySQL StatefulSet backing several apps (Airflow metadata, Metabase app
+DB, a Trino catalog target) is fine for a small platform — one DB to run,
+back up, and monitor. Give each app its own database + least-privilege user
+(`SELECT`/`SHOW VIEW` for a read-only catalog; full rights on its own schema for
+an app that owns state). Passwords in per-app Secrets, referenced by both the DB
+chart (to create the user) and the consuming app.
+
+## MySQL 8/9 auth — every client hits this
+
+- MySQL **9.x removed the `mysql_native_password` plugin entirely** (deprecated
+  in 8.0). `CREATE USER ... IDENTIFIED WITH mysql_native_password` fails with
+  "Plugin 'mysql_native_password' is not loaded". Users are `caching_sha2_password`.
+- `caching_sha2_password` needs an **encrypted channel** for the first auth (RSA
+  key exchange), or `allowPublicKeyRetrieval=true` on an insecure one. What each
+  client needs in its connection string:
+  - **Airflow** (`mysqlclient` C driver): `mysql://user:pass@host/db` works as-is.
+  - **Metabase** (MariaDB Connector/J **2.x**): `?useSSL=true&trustServerCertificate=true`
+    (not `sslMode=trust` — that's the 3.x syntax).
+  - **Trino** / anything on **MySQL Connector/J 8.x**: `?sslMode=REQUIRED`.
+  - Grafana (`go-sql-driver`): `?tls=skip-verify` or `?allowNativePasswords=true&tls=...`.
+- The MySQL server chart must actually enable TLS (groundhog2k/mysql and Bitnami
+  both do by default, with a self-signed cert — hence `trustServerCertificate` /
+  `skip-verify` / `sslMode=REQUIRED` rather than full verification).
+
+## MySQL server config for Airflow
 
 - Airflow requires `explicit_defaults_for_timestamp=1` on the MySQL server, plus
   `character-set-server=utf8mb4` / `collation-server=utf8mb4_unicode_ci`. Pass
