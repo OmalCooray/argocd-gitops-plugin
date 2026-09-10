@@ -23,7 +23,8 @@ def _text(name):
 def test_each_starter_is_gated_on_an_enabled_flag():
     for name in EXPECTED:
         t = _text(name)
-        assert re.search(r"\{\{-?\s*if\s+\.Values\.\w+\.enabled\s*\}\}", t), name
+        # nil-safe gate: {{- if (.Values.<x>).enabled }}
+        assert re.search(r"\{\{-?\s*if\s+\(\.Values\.\w+\)\.enabled\s*\}\}", t), name
         assert t.rstrip().endswith("{{- end }}"), name
 
 

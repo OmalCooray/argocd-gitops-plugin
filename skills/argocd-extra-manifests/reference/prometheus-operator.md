@@ -17,9 +17,14 @@ prometheus:
     ruleSelectorNilUsesHelmValues: false
 ```
 
-makes the selectors **empty = match everything, in every namespace**. So a
-ServiceMonitor with any labels, in any namespace, is picked up. Good default for
-a platform where apps ship their own monitors.
+makes `serviceMonitorSelector` (and the Pod/rule equivalents) **empty**, so the
+`Prometheus` CR matches ServiceMonitors by label = any label, i.e. all of them.
+
+The **cross-namespace** behavior is a separate knob:
+`spec.serviceMonitorNamespaceSelector` defaults to `{}`, which means *all
+namespaces*. Together the two knobs give "any ServiceMonitor, in any namespace" —
+a good default for a platform where apps ship their own monitors. A stricter
+install may tighten either one.
 
 A stricter install (selectors not nil) usually requires the label
 `release: <kube-prometheus-stack release name>` on the ServiceMonitor. The
@@ -31,7 +36,7 @@ starter templates take `serviceMonitor.labels` so you can add it if needed.
 `PodMonitor.spec.podMetricsEndpoints[].port` are the **name** of a port on the
 Service / pod, not a number. If the app's Service exposes
 `ports: [{name: metrics, port: 9102}]` you write `port: metrics`. `helm template
-charts/<app> | grep -A3 'kind: Service'` shows the names. If a port has no name,
+<app> charts/<app> | grep -A3 'kind: Service'` shows the names. If a port has no name,
 there is nothing to reference — the app or chart must name it first.
 
 ## Selector
@@ -41,6 +46,13 @@ the labels the chart puts on the Service you want scraped — usually
 `app.kubernetes.io/name: <app>` plus `app.kubernetes.io/component: <c>` or the
 chart's `app`/`release` labels. `PodMonitor.spec.selector` selects **pods**
 directly (use pod labels).
+
+The ServiceMonitor's own `spec.namespaceSelector` (the starter's
+`serviceMonitor.namespaceSelector` value) — when **absent** — restricts it to
+Services in **its own namespace**. So if you set `serviceMonitor.namespace` to
+create the ServiceMonitor somewhere other than where the app's Services live, you
+**must** also set `serviceMonitor.namespaceSelector` to the app's namespace, or
+it scrapes nothing.
 
 ## Endpoint defaults the starters apply
 

@@ -41,11 +41,15 @@ last run so you can read its logs), `HookSucceeded` (delete on success),
    fires → deadlock. **Rule: a PreSync/Sync hook may unblock the main resources;
    a PostSync hook must only depend on them, never the reverse.**
 2. **Helm hooks are translated.** Argo CD maps `helm.sh/hook: pre-install,pre-upgrade`
-   → `PreSync` and `post-install,post-upgrade` → `PostSync`. A chart's
-   `post-install` migration Job becomes a PostSync hook and can hit trap 1. Fix:
-   `<chart>.<job>.useHelmHooks: false` in values (makes it a plain resource) plus
-   re-annotating it `argocd.argoproj.io/hook: Sync`,
-   `hook-delete-policy: BeforeHookCreation`.
+   → `PreSync` and `post-install,post-upgrade` → `PostSync`. Other Helm hook
+   phases (`test`, `pre-delete`, `post-delete`) are ignored or only partially
+   honored — relevant only if the free-text path adds a Job carrying those. A
+   chart's `post-install` migration Job becomes a PostSync hook and can hit
+   trap 1. Fix: `<chart>.<job>.useHelmHooks: false` in values (makes it a plain
+   resource) — if the chart exposes such a toggle (Bitnami and some others do);
+   otherwise disable the Helm hook by patching the annotation off, or accept the
+   PreSync/PostSync behavior and design around it. Then re-annotate it
+   `argocd.argoproj.io/hook: Sync`, `hook-delete-policy: BeforeHookCreation`.
 3. **`prune: false` + hooks.** On an app with pruning disabled (e.g. one that
    manages CRDs), leftover hook ServiceAccounts / RBAC show as "requiresPruning"
    noise — harmless but confusing.

@@ -25,22 +25,26 @@ charts/<app>/
 ## Conventions
 
 - **One file per resource kind**, kebab-named (`templates/servicemonitor.yaml`).
-- **Your templates must be able to name chart-generated resources.** A parent
-  chart cannot call a subchart's `_helpers.tpl`, so you reference Services / pods
-  / labels by a predictable name. Two ways that name becomes predictable:
+- **Your templates must be able to name chart-generated resources.** Helm's
+  named templates share one global namespace, so `{{ include "<upstream>.fullname" . }}`
+  from the wrapper *does* resolve — but it executes against the **wrapper's**
+  context and values (it reads the wrapper's top-level `.Values.fullnameOverride`,
+  not `.Values.<chart>.fullnameOverride`), so it silently computes the **wrong**
+  name, and subchart-name collisions resolve unpredictably. So never `include` a
+  subchart's named templates — reference chart-generated resources by their
+  rendered name instead. Two ways that name becomes predictable:
   1. **Argo CD sets the Helm release name to the Application name** (`<app>`).
-     Charts that derive names from the release name (Airflow, kube-prometheus-
-     stack, many others) then produce `<app>-<component>` in-cluster with no
-     configuration. Confirm by rendering with the release name:
-     `helm template <app> charts/<app> ...`.
-  2. If the chart **supports `fullnameOverride`** (Bitnami-style, groundhog2k,
-     Metabase, …) set `<chart>.fullnameOverride: <app>` in the wrapper's base
-     `values.yaml` to pin it. Adding it can rename resources on the next sync if
-     the chart wasn't already producing that name — warn the user.
+     Some charts derive names from the release name and then produce
+     `<app>-<component>` in-cluster with no configuration; others honor
+     `fullnameOverride`. **The render tells you** — confirm by rendering with the
+     release name: `helm template <app> charts/<app> ...`.
+  2. If the chart **honors `fullnameOverride`** (e.g. many Bitnami charts) set
+     `<chart>.fullnameOverride: <app>` in the wrapper's base `values.yaml` to pin
+     it. Adding it can rename resources on the next sync if the chart wasn't
+     already producing that name — warn the user.
   Either way, always `helm template <app> charts/<app>` (release name `<app>`,
   not the default `release-name`) and read the actual names before writing the
-  manifest. Never set `fullnameOverride` on a chart that ignores it — it is a
-  silent no-op that misleads the next reader.
+  manifest.
 - **Gate every added manifest on a values flag** — `{{- if .Values.serviceMonitor.enabled }}`
   … `{{- end }}` — default sensible (monitors on), overridable per environment
   through the `$values` overlay in `environments/<env>/values/<app>.yaml`.
@@ -49,8 +53,10 @@ charts/<app>/
   (`charts/traefik/`). Cluster-wide alert rules → `charts/kube-prometheus-stack/`.
 - **CRD-exists is a sync-wave concern.** A ServiceMonitor needs the
   Prometheus-Operator CRD (from the `kube-prometheus-stack` app). That app must
-  sit at a lower `argocd.argoproj.io/sync-wave` than apps that ship its CRs — not
-  in the same folder. See `reference/hooks-and-waves.md`.
+  sit at a lower `argocd.argoproj.io/sync-wave` than apps that ship its CRs. This
+  is ordering via `argocd.argoproj.io/sync-wave` on the Applications (the operator
+  app at a lower wave), not via where files sit. See
+  `reference/hooks-and-waves.md`.
 - **A `templates/` change is a chart change** — bump `charts/<app>/Chart.yaml`
   `version`.
 
@@ -59,19 +65,23 @@ charts/<app>/
 Available: `.Values` (including `.Values.<chart>.*`), `.Release.Name`,
 `.Release.Namespace`, the wrapper's `.Chart`, `.Capabilities`,
 `.Values.global.*`.
-**Not available:** the upstream chart's `_helpers.tpl` named templates — never
-`{{ include "<upstream>.fullname" . }}`.
+**Do not use:** the upstream chart's `_helpers.tpl` named templates — never
+`{{ include "<upstream>.fullname" . }}`. They resolve (Helm's template namespace
+is global) but compute names from the wrong (wrapper) context/values.
 
 ## Authoring checklist
 
 1. `helm template <app> charts/<app>` once (release name `<app>`, matching what
    Argo CD uses — not the default `release-name`). Read the real Service names,
    the **named** ports (a ServiceMonitor `endpoints[].port` must be a *name*, not
-   a number), and the pod/Service labels the new manifest must select. If the
-   names are not `<app>-<component>` and the chart supports `fullnameOverride`,
-   set `<chart>.fullnameOverride: <app>` in `charts/<app>/values.yaml` (warn: may
-   rename on next sync); if the chart ignores `fullnameOverride`, use the names
-   as rendered.
+   a number), and the pod/Service labels the new manifest must select. Some
+   charts derive names from the release name and ignore `fullnameOverride`;
+   others honor it. **The render tells you** — always
+   `helm template <app> charts/<app>` and read the actual names. If the names are
+   not `<app>-<component>` and the chart honors `fullnameOverride`, set
+   `<chart>.fullnameOverride: <app>` in `charts/<app>/values.yaml` (warn: may
+   rename on next sync); if the render already shows `<app>-<component>`, use the
+   names as rendered and do not add a no-op `fullnameOverride`.
 2. For `servicemonitor` / `podmonitor`: copy the matching
    `reference/starters/<kind>.yaml` into `charts/<app>/templates/` verbatim —
    it is fully values-driven — then write the values stanza (step 3). For any
@@ -87,7 +97,8 @@ Available: `.Values` (including `.Values.<chart>.*`), `.Release.Name`,
      interval: 30s
    ```
 4. Never `include` a subchart helper (step "Template context").
-5. Verify: `helm dependency build charts/<app>` →
+5. Verify: `helm dependency build charts/<app>` (or `helm dependency update
+   charts/<app>` if there is no `Chart.lock` yet) →
    `helm template <app> charts/<app>` renders your manifest. If a cluster with
    the CRD is reachable:
    `helm template <app> charts/<app> | kubectl apply --dry-run=server -f -`.

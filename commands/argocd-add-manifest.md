@@ -34,11 +34,10 @@ the PR, end with a summary.
    the Application name as the release name; the default `release-name` gives
    wrong names). Read the real Service names, the **named** ports, and the
    Service/pod labels the new manifest must target.
-   - If the names are not `<app>-<component>`: if the chart supports
+   - If the render shows the names are already `<app>-<component>`, use them
+     as-is and do not add a no-op `fullnameOverride`; if not and the chart honors
      `fullnameOverride`, add `<chart>.fullnameOverride: <app>` to
-     `charts/<app>/values.yaml` (tell the user — may rename on next sync). If the
-     chart ignores it (Airflow, kube-prometheus-stack, …), use the names as
-     rendered — do not add a no-op `fullnameOverride`.
+     `charts/<app>/values.yaml` (tell the user — may rename on next sync).
    - For `servicemonitor` / `podmonitor`: if no Service/pod exposes a **named**
      metrics port and the app serves no `/metrics`, STOP — report that the app
      exposes no scrapeable metrics (needs an exporter or the chart's metrics

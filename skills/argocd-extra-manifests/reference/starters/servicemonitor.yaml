@@ -21,7 +21,7 @@ Values (charts/<app>/values.yaml, TOP-LEVEL key `serviceMonitor:`):
   relabelings        list   — optional, pass-through
   metricRelabelings  list   — optional, pass-through
 */ -}}
-{{- if .Values.serviceMonitor.enabled }}
+{{- if (.Values.serviceMonitor).enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
