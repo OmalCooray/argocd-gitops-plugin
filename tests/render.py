@@ -33,7 +33,9 @@ def main(argv: list[str]) -> int:
         return 2
     template = open(argv[1], encoding="utf-8").read()
     variables = json.loads(open(argv[2], encoding="utf-8").read())
-    sys.stdout.write(render(template, variables))
+    # Force UTF-8 on stdout — templates contain non-ASCII (e.g. "≥") and the
+    # default console encoding on Windows (cp1252) cannot encode them.
+    sys.stdout.buffer.write(render(template, variables).encode("utf-8"))
     return 0
 
 
