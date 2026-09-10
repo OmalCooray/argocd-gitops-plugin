@@ -6,6 +6,11 @@ argument-hint: "[app-name]  (omit to triage every app in the env)"
 
 Diagnose why an Argo CD app is not `Synced` / `Healthy`.
 
+**Follow the interaction contract:** `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`
+— announce each inspection step, show the command + the three lines that matter,
+one-shot (never poll), checkpoint before the two allowed unblock actions, end
+with the root-cause / evidence / fix summary.
+
 ## Inputs
 
 - `$1` — the app to diagnose. If omitted, list every Argo CD app and diagnose

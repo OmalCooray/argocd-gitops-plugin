@@ -6,6 +6,10 @@ argument-hint: "[environment-name]"
 
 Report drift between the GitOps repo and a live Argo CD instance.
 
+**Follow the interaction contract:** `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`
+— announce each step, show commands + key output, one-shot (no polling), end with
+a summary. This command is read-only, so no checkpoints are needed.
+
 ## Inputs
 
 - `$1` — environment to audit (optional; default: audit every `environments/*/`).

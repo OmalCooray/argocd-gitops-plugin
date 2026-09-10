@@ -7,6 +7,11 @@ argument-hint: "[kube-context]"
 You are generating `bootstrap/install.sh` for the Argo CD GitOps repo in the
 current working directory.
 
+**Follow the interaction contract:** `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`
+— announce each step, show commands and their key output, run the install in the
+foreground with visible progress, checkpoint before touching the cluster, no
+silent background jobs or polling loops.
+
 ## Preconditions
 
 - CWD is a GitOps repo created by `/argocd-init-repo` (has `environments/<env>/`
@@ -28,13 +33,16 @@ current working directory.
    kube-context maps to). `$ARGUMENTS` holds an optional kube-context.
 4. Render `${CLAUDE_PLUGIN_ROOT}/templates/install.sh.tmpl` with these variables:
    `ARGOCD_NAMESPACE`, `ARGOCD_CHART_VERSION`, `ENV_NAME`, `GITOPS_REPO_URL`.
-5. Write it to `bootstrap/install.sh`, `chmod +x` it.
-6. Show the user the rendered script and the exact command to run:
-   `./bootstrap/install.sh [kube-context]`.
-7. Do **not** run it yourself — installing Argo CD onto a cluster is the user's
-   call. Offer to run it if they confirm a context.
+5. Write it to `bootstrap/install.sh`, `chmod +x` it. Show the rendered script.
+6. **Checkpoint:** `> Run ./bootstrap/install.sh against context <ctx> now? It
+   installs Argo CD (~3 min) and applies the root app.` Wait for yes.
+7. On yes, run it **in the foreground** so its output (helm progress, CRD wait,
+   root-app apply) streams into the conversation. Do not background it. When it
+   returns, run `kubectl get applications -n <argocd-ns>` once and show the
+   result. On no, just print the command for them to run later.
 
 ## Output
 
-Print: the chart version pinned, the path written, and the run command. If
-`$ARGUMENTS` gave a context, include it in the example.
+A short summary: chart version pinned, `bootstrap/install.sh` written, whether
+the install ran and what Argo CD reports, and the next command
+(`/argocd-add-chart`).

@@ -6,6 +6,10 @@ argument-hint: "<app-name> [chart-version] [--repo <helm-repo-url>]"
 
 Add a chart to `charts/<app>/` in the current GitOps repo.
 
+**Follow the interaction contract:** `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`
+— announce each step, show commands + key output, checkpoint before `git push` /
+opening the PR, end with a summary.
+
 ## Inputs
 
 - `$1` — app/catalog name (kebab-case, required).
