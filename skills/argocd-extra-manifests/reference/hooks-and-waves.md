@@ -1,5 +1,7 @@
 # Sync-waves vs Argo CD hooks
 
+<!-- owner: argocd-extra-manifests skill · last reviewed: 2026-09-10 -->
+
 ## Reach for sync-waves first
 
 `argocd.argoproj.io/sync-wave: "N"` (a string; lower runs first, default `"0"`,

@@ -1,5 +1,7 @@
 # Datasource normalization
 
+<!-- owner: argocd-grafana-dashboards skill · last reviewed: 2026-09-10 -->
+
 Community dashboards from grafana.com reference their datasource in ways that do
 not resolve against an arbitrary Grafana. `fetch_dashboard.py` rewrites them.
 

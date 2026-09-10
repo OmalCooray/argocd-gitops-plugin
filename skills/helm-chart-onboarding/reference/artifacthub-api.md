@@ -1,5 +1,7 @@
 # ArtifactHub REST API (used via WebFetch)
 
+<!-- owner: helm-chart-onboarding skill · last reviewed: 2026-09-10 -->
+
 Base: `https://artifacthub.io/api/v1`. No auth for reads.
 
 ## Search for a chart

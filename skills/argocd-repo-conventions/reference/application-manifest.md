@@ -1,5 +1,7 @@
 # The multi-source Application manifest, field by field
 
+<!-- owner: argocd-repo-conventions skill · last reviewed: 2026-09-10 -->
+
 ```yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application

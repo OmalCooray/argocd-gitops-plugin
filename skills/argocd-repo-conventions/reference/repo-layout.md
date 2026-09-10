@@ -1,5 +1,7 @@
 # Annotated repo layout
 
+<!-- owner: argocd-repo-conventions skill · last reviewed: 2026-09-10 -->
+
 ```
 <gitops-repo>/
 ├── charts/                          # CATALOG

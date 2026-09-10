@@ -24,7 +24,8 @@ profiles and produce a findings list. Optionally emit a hardened overlay.
    Review `rendered.yaml` (actual manifests) plus the two values files. Upstream
    defaults tell you which knobs exist.
 3. Walk the checklist for the chosen profile (below; full detail and per-workload
-   notes in `reference/prod-readiness-checklist.md`).
+   notes in `reference/prod-readiness-checklist.md`; chart-specific notes in
+   `reference/chart-notes.md`).
 4. Report findings as a table: `severity | area | finding | fix (values key)`.
    Severity: **blocker** (would fail or lose data in that profile), **warn**
    (works but risky), **note** (nice to have).
