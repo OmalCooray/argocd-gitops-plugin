@@ -5,7 +5,7 @@ This project follows semantic versioning.
 
 ## [Unreleased]
 
-## [0.5.0] — YYYY-MM-DD
+## [0.5.0] — 2026-09-10
 
 ### Added
 - PR-blocking CI (`ci.yml`): pytest + cluster-free helm smokes on Linux, macOS, Windows; `actionlint`.
