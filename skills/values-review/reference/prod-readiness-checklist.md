@@ -93,19 +93,61 @@ The `apache-airflow/airflow` chart:
   without remote logging, worker logs vanish when the pod dies = **warn**.
 - `dags.gitSync` or a baked image for DAG delivery; `gitSync` needs a
   credentials secret for private repos.
-- `migrateDatabaseJob.enabled: true` (runs `airflow db upgrade` as a pre-sync
-  hook) — required whenever the Airflow version or schema changes.
+- `migrateDatabaseJob.enabled: true` (runs `airflow db upgrade`) — required
+  whenever the Airflow version or schema changes.
 - Resource floors that actually work: webserver ~1Gi, scheduler ~1Gi,
   each worker ~1Gi+, triggerer ~512Mi. Below these Airflow OOMs under load.
+- `apiServer.*` is the Airflow 3 replacement for `webserver.*`; on Airflow 3 the
+  webserver secret key value is `apiSecretKeySecretName`, plus `jwtSecretName`.
+
+### Airflow on Argo CD — the deployment gotchas
+
+Verified against `apache-airflow/airflow` 1.22.0 + Argo CD 3.5 (`airflow: {}`
+plain deploy hangs on "Waiting for migrations" without these):
+
+- **Helm hooks don't run.** The chart's `migrateDatabaseJob` and `createUserJob`
+  ship as `helm.sh/hook: pre-install`. Argo CD does not run Helm's install hooks,
+  so the DB is never migrated and every component's `wait-for-airflow-migrations`
+  init container crash-loops forever. Set
+  `migrateDatabaseJob.useHelmHooks: false` and `createUserJob.useHelmHooks: false`
+  (also `applyCustomEnv: false`).
+- **Jobs then drift `OutOfSync` forever.** A started Job gets a
+  `batch.kubernetes.io/controller-uid` selector that the rendered manifest lacks.
+  Re-annotate both jobs as Argo CD hooks so they're recreated each sync:
+  `jobAnnotations: {argocd.argoproj.io/hook: Sync,
+  argocd.argoproj.io/hook-delete-policy: BeforeHookCreation}`.
+- **Chart-generated random secrets churn.** With no `*SecretName` set, the chart
+  emits `*-fernet-key`, `*-api-secret-key`, `*-jwt-secret`, `*-metadata`,
+  `*-broker-url` with fresh random values on every render → permanent `OutOfSync`
+  and, worse, a rotating Fernet key that makes stored connections undecryptable.
+  Create stable Secrets out of band and set `fernetKeySecretName`,
+  `apiSecretKeySecretName`, `jwtSecretName`, `data.metadataSecretName`.
+- **Out-of-band Secrets must not carry the app's tracking label.** If a
+  hand-created Secret has `app.kubernetes.io/instance: <app>` (e.g. because you
+  `kubectl apply`-ed over a chart-generated one), Argo CD treats it as an
+  app resource that's "extra" and sits `OutOfSync`. Create them fresh with no
+  Argo CD labels/annotations.
+- **KubernetesExecutor** removes Redis, the Celery result backend, the broker,
+  and the worker Deployment — four fewer stateful things to run. Good default for
+  a first prod cut; set `executor: KubernetesExecutor` and `redis.enabled: false`.
 
 ## MySQL for Airflow — the gotchas
 
-- Airflow requires `explicit_defaults_for_timestamp=1` on the MySQL server.
-  Bitnami MySQL: set it under `primary.configuration` or
-  `primary.extraFlags`.
-- Use the `mysql` (not `mysql+mysqldb`) driver family the chart expects; the
-  Airflow chart builds the SQLAlchemy URL from `data.metadataConnection.protocol`
-  — set it to `mysql`.
-- Character set `utf8mb4`.
-- Create the `airflow` database and user via `auth.database` / `auth.username`
-  in the MySQL chart; put the password in a `Secret` both apps reference.
+- Airflow requires `explicit_defaults_for_timestamp=1` on the MySQL server, plus
+  `character-set-server=utf8mb4` / `collation-server=utf8mb4_unicode_ci`. Pass
+  these via the MySQL chart's custom-config mechanism (Bitnami:
+  `primary.configuration`; groundhog2k: `customConfig`).
+- The `apache/airflow` image bundles `mysqlclient`, so a `mysql://airflow:PASS@host:3306/airflow`
+  SQLAlchemy URL in the `connection` key of `data.metadataSecretName` works
+  as-is. Verify with a throwaway pod: `python -c "import MySQLdb"`.
+- Avoid the Bitnami MySQL chart unless you've confirmed the image tag is still
+  pullable (post-2025 Bitnami moved free Debian images to `bitnamilegacy/`).
+  `groundhog2k/mysql` uses the official `mysql` image and is a clean
+  drop-in for a single-primary metadata DB.
+- Deploy the DB **before** Airflow: put `argocd.argoproj.io/sync-wave: "-1"` on
+  the MySQL `Application` so the root app syncs it first. (The plugin's
+  `application.yaml.tmpl` has no sync-wave field yet — add the annotation by
+  hand, or via `/argocd-deploy` follow-up edit.)
+- Create the `airflow` database + user through the MySQL chart's user-database
+  option, sourcing name/user/password from the **same Secret** the Airflow
+  `data.metadataSecretName` points at (add a `connection` key to it).
