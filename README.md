@@ -13,6 +13,7 @@ folder per **environment**, wired together with the app-of-apps pattern.
 | `/argocd-add-chart <app> [version]` | Research an upstream Helm chart, pin it, scaffold `charts/<app>/`, open a PR. |
 | `/argocd-deploy <app> <env>` | Wire a catalog app into an environment (`Application` + values overlay), open a PR, then drive it to Healthy. |
 | `/argocd-sync <app> [env]` | Drive an already-declared app to Synced + Healthy + a passing functional check — diagnose → fix in git → re-sync on any stall. |
+| `/argocd-add-manifest <app> <kind>` | Add your own templated manifest (ServiceMonitor/PodMonitor, or any kind via free text) to a wrapper chart's `templates/`, gated + verified, open a PR. Opt-in. |
 | `/argocd-review-values <app> [env] [--profile dev\|prod] [--write]` | Check a chart's values against a dev/prod readiness rubric; optionally open a PR with a hardened overlay. |
 | `/argocd-doctor [app]` | Diagnose a stuck / Degraded / OutOfSync app — one-shot inspection, root cause, and the fix. |
 | `/argocd-audit [env]` | Read-only drift report: repo vs live Argo CD. |
@@ -76,6 +77,10 @@ Phase 2 shipped: `values-review` / `/argocd-review-values`,
 `argocd-troubleshooting` / `/argocd-doctor`,
 `argocd-rollout` / `/argocd-sync` (drive-to-healthy loop).
 Phase 3: `/argocd-add-env`, `/argocd-promote`, secrets.
+
+Next: `argocd-observability` / `/argocd-observe` (spec #2) — the full
+ServiceMonitor + Grafana dashboard + alerts onboarding workflow, built on
+`/argocd-add-manifest`.
 
 ## Development
 
