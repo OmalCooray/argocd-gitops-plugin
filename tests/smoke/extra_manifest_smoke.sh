@@ -4,7 +4,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="$ROOT/tests/.out/extra-manifest"
-STARTER="$ROOT/skills/argocd-extra-manifests/references/starters/servicemonitor.yaml"
+STARTER="$ROOT/skills/argocd-extra-manifests/reference/starters/servicemonitor.yaml"
 rm -rf "$OUT"; mkdir -p "$OUT/templates"
 
 cat > "$OUT/Chart.yaml" <<'YAML'

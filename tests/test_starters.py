@@ -3,7 +3,7 @@ import pathlib
 import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-STARTERS = ROOT / "skills/argocd-extra-manifests/references/starters"
+STARTERS = ROOT / "skills/argocd-extra-manifests/reference/starters"
 
 EXPECTED = {
     "servicemonitor.yaml": "ServiceMonitor",

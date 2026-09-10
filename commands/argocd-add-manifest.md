@@ -45,7 +45,7 @@ the PR, end with a summary.
      option first; that's the `argocd-observability` workflow, not this command).
 4. Scaffold:
    - starter kind: copy
-     `${CLAUDE_PLUGIN_ROOT}/skills/argocd-extra-manifests/references/starters/<kind>.yaml`
+     `${CLAUDE_PLUGIN_ROOT}/skills/argocd-extra-manifests/reference/starters/<kind>.yaml`
      → `charts/<app>/templates/<kind>.yaml` verbatim.
    - free-text kind: author `charts/<app>/templates/<slug>.yaml` from the
      `argocd-extra-manifests` checklist (gated, no subchart `_helpers`).

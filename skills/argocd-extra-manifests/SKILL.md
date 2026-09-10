@@ -50,7 +50,7 @@ charts/<app>/
 - **CRD-exists is a sync-wave concern.** A ServiceMonitor needs the
   Prometheus-Operator CRD (from the `kube-prometheus-stack` app). That app must
   sit at a lower `argocd.argoproj.io/sync-wave` than apps that ship its CRs — not
-  in the same folder. See `references/hooks-and-waves.md`.
+  in the same folder. See `reference/hooks-and-waves.md`.
 - **A `templates/` change is a chart change** — bump `charts/<app>/Chart.yaml`
   `version`.
 
@@ -73,7 +73,7 @@ Available: `.Values` (including `.Values.<chart>.*`), `.Release.Name`,
    rename on next sync); if the chart ignores `fullnameOverride`, use the names
    as rendered.
 2. For `servicemonitor` / `podmonitor`: copy the matching
-   `references/starters/<kind>.yaml` into `charts/<app>/templates/` verbatim —
+   `reference/starters/<kind>.yaml` into `charts/<app>/templates/` verbatim —
    it is fully values-driven — then write the values stanza (step 3). For any
    other kind: author the template against these conventions.
 3. Add the gating values stanza to `charts/<app>/values.yaml` as a **top-level**
@@ -95,9 +95,9 @@ Available: `.Values` (including `.Values.<chart>.*`), `.Release.Name`,
 
 ## References
 
-- `references/prometheus-operator.md` — how the operator selects ServiceMonitors,
+- `reference/prometheus-operator.md` — how the operator selects ServiceMonitors,
   the named-port rule, defaults, and how to confirm a target is actually scraped.
-- `references/hooks-and-waves.md` — sync-waves vs Argo CD hooks; the traps.
+- `reference/hooks-and-waves.md` — sync-waves vs Argo CD hooks; the traps.
 
 ## When an app exposes no metrics
 
