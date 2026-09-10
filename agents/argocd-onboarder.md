@@ -60,9 +60,14 @@ directory, from nothing to an open PR.
     chart + version + why, the `helm template ... | head -80` preview, target
     revision (+ prod pin caveat), destination namespace, and post-merge note
     ("the <env> root app syncs this automatically").
-11. Report back: files created, verification results (paste the `helm lint` and
-    dry-run output), and the PR URL. If `gh` is unavailable, report the branch
-    name and the full PR body text for the user to open manually.
+11. **Drive it to healthy.** Checkpoint: ask whether to merge the PR now. If yes,
+    merge it, then load the `argocd-rollout` skill and run its loop — take the
+    app from declared → Synced → Healthy → a passing functional check,
+    diagnosing and fixing (further PRs, each behind a checkpoint) any stall, up
+    to 4 fix cycles. If the user said not to merge, stop after the PR.
+12. Report back: files created, verification results, the PR(s), whether the app
+    reached Healthy + functioning (and what the functional check confirmed), or
+    the blockers if it did not.
 
 ## Failure handling
 

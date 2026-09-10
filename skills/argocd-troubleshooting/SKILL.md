@@ -72,17 +72,39 @@ kubectl -n <dest-ns> logs <pod> --previous --tail=50           # last crash
 ## Step 4 — confirm the fix in git, not the cluster
 
 The fix is a values or manifest change committed to the GitOps repo, then a sync.
-Only touch the cluster directly to (a) create a missing out-of-band Secret or
-(b) clear a stuck sync operation:
+Never `kubectl edit` a workload to work around a values bug — the next sync
+reverts it and the drift hides the real problem.
+
+### Triggering a sync (no `argocd` CLI needed)
+
+```bash
+# usually enough for an app with syncPolicy.automated:
+kubectl -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+
+# force an explicit sync by writing the operation:
+kubectl -n <argocd-ns> patch application <app> --type merge -p \
+  '{"operation":{"initiatedBy":{"username":"troubleshooting"},"sync":{"revision":"HEAD","syncStrategy":{"apply":{"force":true}}}}}'
+```
+
+### Clearing a deadlocked sync
+
+**Signature:** `status.operationState.phase: Running` for a long time,
+`message: "waiting for healthy state of <kind>/<name>"`, and that object can't
+become healthy until a fix that's already merged is applied — but the running
+operation won't re-render to apply it. The sync is waiting on the thing the sync
+needs to fix.
+
+**Recipe** (after the fix is merged to the tracked branch):
 
 ```bash
 kubectl -n <argocd-ns> patch application <app> --type merge -p '{"operation":null}'
 kubectl -n <argocd-ns> patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
 kubectl -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+# if automated sync doesn't re-trigger within ~30s, force it with the patch above
 ```
 
-Never `kubectl edit` a workload to work around a values bug — the next sync
-reverts it and the drift hides the real problem.
+The only direct cluster actions troubleshooting ever takes: trigger/clear a sync,
+`annotate refresh`, and creating a missing out-of-band Secret.
 
 ## Offline mode
 

@@ -39,11 +39,15 @@ with the root-cause / evidence / fix summary.
    - **Evidence** — the exact event / log line.
    - **Fix** — the values key or manifest change, with the suggested value, and
      which file in the repo it goes in.
-   - **One-off cluster action** — only if needed to unblock (create a missing
-     Secret, clear a stuck sync operation). Never a `kubectl edit` workaround.
+   - **One-off cluster action** — only if needed to unblock: create a missing
+     out-of-band Secret, or clear a **deadlocked sync** (the sync is
+     "waiting for healthy state of X" and X can't be healthy until the merged fix
+     applies — see `argocd-troubleshooting` → "Clearing a deadlocked sync"). Never
+     a `kubectl edit` / `scale` / workload-`patch` workaround.
 5. If `--fix` was passed (and the fix is a repo change), make it on a branch and
    open a PR the way `/argocd-deploy` does; otherwise just report.
-6. After the user applies the fix and syncs, re-run once to confirm.
+6. After the fix is merged, re-sync and re-run once to confirm — or, to drive it
+   the rest of the way to Healthy + functioning, hand off to `/argocd-sync <app>`.
 
 ## Output
 
