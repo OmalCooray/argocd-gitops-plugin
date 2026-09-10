@@ -18,6 +18,12 @@ folder per **environment**, wired together with the app-of-apps pattern.
 
 Plus the `argocd-onboarder` agent, which does add-chart -> deploy -> PR in one run.
 
+Every command follows an [interaction contract](references/interaction-style.md):
+each step is announced, commands and their key output are shown, long operations
+(installs, syncs) run in the foreground with visible progress, and there's a
+one-line checkpoint before anything that changes a cluster or opens a PR — no
+silent background work, no health-polling loops.
+
 ## Requirements
 
 Install and put on `PATH`:

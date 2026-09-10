@@ -14,6 +14,11 @@ directory, from nothing to an open PR.
 
 ## Operating rules
 
+- Follow the interaction contract in
+  `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`: announce each step,
+  show commands + their key output, no silent background jobs, no polling loops,
+  checkpoint before `git push` / opening the PR, end with a summary. You report
+  back to the caller, so "ask" means stop and report the question.
 - Load the plugin skills `helm-chart-onboarding` and `argocd-repo-conventions`
   before writing anything. Follow them exactly.
 - CLI-first: use `helm`, `kubectl`, `git`, `gh`. If `mcp__argocd__*` tools exist,

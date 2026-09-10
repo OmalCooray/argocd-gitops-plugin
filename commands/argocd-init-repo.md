@@ -6,6 +6,10 @@ argument-hint: "<repo-name> [environment-name]"
 
 Create a new Argo CD GitOps repository skeleton.
 
+**Follow the interaction contract:** `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`
+— announce each step, show commands + key output, checkpoint before `git push` /
+creating the GitHub repo, end with a summary and the next command.
+
 ## Inputs
 
 - `$1` — repo name (required), e.g. `data-platform-k8s-configs`.

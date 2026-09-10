@@ -6,6 +6,11 @@ argument-hint: "<app-name> <environment-name>"
 
 Wire an existing catalog chart into an environment.
 
+**Follow the interaction contract:** `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`
+— announce each step, show commands + key output, checkpoint before `git push` /
+opening the PR, never force a sync or apply the Application by hand, end with a
+summary.
+
 ## Inputs
 
 - `$1` — app name; must already exist at `charts/<app>/`.

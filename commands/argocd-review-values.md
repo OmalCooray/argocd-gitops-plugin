@@ -7,6 +7,10 @@ argument-hint: "<app-name> [environment-name] [--profile dev|prod] [--write]"
 Review the effective Helm values for `<app>` and report how close they are to the
 requested readiness profile.
 
+**Follow the interaction contract:** `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`
+— announce each step, show commands + key output, checkpoint before `git push` /
+opening the PR (only with `--write`), end with the findings table and verdict.
+
 ## Inputs
 
 - `$1` — app name; `charts/<app>/` must exist.
