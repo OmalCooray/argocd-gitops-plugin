@@ -6,9 +6,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 EXPECTED_COMMANDS = {
     "argocd-bootstrap", "argocd-init-repo", "argocd-add-chart",
-    "argocd-deploy", "argocd-audit",
+    "argocd-deploy", "argocd-audit", "argocd-review-values",
 }
-EXPECTED_SKILLS = {"argocd-repo-conventions", "helm-chart-onboarding"}
+EXPECTED_SKILLS = {
+    "argocd-repo-conventions", "helm-chart-onboarding", "values-review",
+}
 EXPECTED_AGENTS = {"argocd-onboarder"}
 
 FRONTMATTER = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
