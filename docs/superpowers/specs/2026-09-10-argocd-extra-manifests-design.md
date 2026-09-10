@@ -8,10 +8,12 @@
 
 Add a first-class, **opt-in** capability to the `argocd-gitops-plugin` for placing
 your own templated Kubernetes manifests alongside a pinned public Helm chart —
-without editing or vendoring the upstream chart. Examples: a `ServiceMonitor` for
-an app whose chart has no monitoring support, a Traefik `IngressRoute`, a
-`NetworkPolicy`, a `PrometheusRule`. The mechanism is general; the plugin ships a
-small library of correct-by-construction starters plus a generic authoring path.
+without editing or vendoring the upstream chart. The mechanism is general (any
+resource kind); the plugin ships correct-by-construction starters for the two
+kinds needed now — `ServiceMonitor` and `PodMonitor` — plus a generic
+"describe it, I write the wrapper template" authoring path for everything else
+(IngressRoute, NetworkPolicy, PrometheusRule, …), added only when explicitly
+asked. More starters can be added later as demand appears.
 
 This is spec **#1 of 2**. Spec #2 (`argocd-observability` / `/argocd-observe`)
 builds the full "onboard app X into observability" workflow — ServiceMonitor +
@@ -45,13 +47,12 @@ IngressRoutes, NetworkPolicies, PDBs — and the recurring need is open-ended.
 
 - Document `charts/<app>/templates/` as a supported place for your own manifests.
 - A command, `/argocd-add-manifest <app> <kind>`, that scaffolds a correct wrapper
-  template (from a starter library) or authors one from a free-text description.
-- Starters for the common kinds: `ServiceMonitor`, `PodMonitor`, Traefik
-  `IngressRoute`, Gateway API `HTTPRoute`, plain `Ingress`, `NetworkPolicy`,
-  `PrometheusRule`.
+  template (from a starter) or authors one from a free-text description.
+- Starters for `ServiceMonitor` and `PodMonitor`. Other kinds are handled by the
+  generic authoring path now; their starters are a later, additive change.
 - A skill (`argocd-extra-manifests`) holding the mechanism, conventions, the
-  starter library, and reference material (Prometheus-Operator label rules,
-  Traefik IngressRoute, Argo CD hooks vs sync-waves).
+  starters, and reference material (Prometheus-Operator label rules, Argo CD
+  hooks vs sync-waves).
 - Every added manifest is gated on a values flag, verified to render and to be
   accepted by its CRD, and reachable per-environment via the existing `$values`
   overlay.
@@ -105,20 +106,14 @@ skills/argocd-extra-manifests/
 └── references/
     ├── starters/
     │   ├── servicemonitor.yaml
-    │   ├── podmonitor.yaml
-    │   ├── ingressroute.yaml
-    │   ├── httproute.yaml
-    │   ├── ingress.yaml
-    │   ├── networkpolicy.yaml
-    │   └── prometheusrule.yaml
+    │   └── podmonitor.yaml
     ├── prometheus-operator.md
-    ├── traefik-ingressroute.md
     └── hooks-and-waves.md
 ```
 
 **`SKILL.md`** — description triggers on "add a ServiceMonitor / PodMonitor /
-IngressRoute / NetworkPolicy / custom manifest / extra template to a chart",
-"the chart has no monitoring / ingress support". Body:
+custom manifest / extra template to a chart", "the chart has no monitoring /
+ingress support". Body:
 
 - The mechanism: wrapper `templates/` renders alongside the pinned dependency;
   you never touch the upstream chart.
@@ -137,44 +132,32 @@ IngressRoute / NetworkPolicy / custom manifest / extra template to a chart",
   6. Verify: `helm template charts/<app>` renders; if a cluster with the CRD is
      reachable, `helm template charts/<app> | kubectl apply --dry-run=server -f -`.
   7. Bump `charts/<app>/Chart.yaml` `version`.
-- Pointer to `prometheus-operator.md`, `traefik-ingressroute.md`,
-  `hooks-and-waves.md`.
+- Pointer to `prometheus-operator.md` and `hooks-and-waves.md`.
 
-**`references/starters/*.yaml`** — each is a real wrapper-chart template, not
-pseudo-code:
+**`references/starters/servicemonitor.yaml` and `podmonitor.yaml`** — each a real
+wrapper-chart template, not pseudo-code:
 - Opens with `{{- if .Values.<key>.enabled }}` … closes with `{{- end }}`.
 - Targets `<app>-<component>` names and **named** ports via values with sane
   defaults.
-- Carries a top comment: what it is, which CRD/controller it needs, which values
-  keys it reads.
-- `servicemonitor.yaml` / `podmonitor.yaml`: `metadata.labels` that a default
-  kube-prometheus-stack (with `serviceMonitorSelectorNilUsesHelmValues: false`)
-  picks up; a note that a stricter install needs `release: <kps-release>`.
-  `endpoints[].port` / `podMetricsEndpoints[].port` is a **named** port. Reads
-  `path` (default `/metrics`), `scheme` (default `http`), `interval` (default
-  `30s`), `scrapeTimeout`.
-- `ingressroute.yaml` (Traefik): reads `host`, `entryPoints` (default
-  `[websecure]`), `service`/`port`, optional `middlewares`, TLS via `certResolver`
-  or a `secretName`.
-- `httproute.yaml` (Gateway API): reads `parentRef` (gateway name/namespace),
-  `hostnames`, `backendRef`.
-- `ingress.yaml`: `ingressClassName`, `host`, `path`/`pathType`, TLS `secretName`,
-  `annotations`.
-- `networkpolicy.yaml`: a default-deny-ingress + allow-from-namespace starter,
-  `podSelector` on `<app>` labels, configurable `ingress`/`egress` rules.
-- `prometheusrule.yaml`: a `spec.groups` skeleton with one example recording and
-  one alerting rule referencing the app's metrics.
+- Top comment: what it is, that it needs the Prometheus-Operator CRD (from the
+  `kube-prometheus-stack` app), which values keys it reads.
+- `metadata.labels` that a default kube-prometheus-stack (with
+  `serviceMonitorSelectorNilUsesHelmValues: false`) picks up; a note that a
+  stricter install needs `release: <kps-release>`.
+- `endpoints[].port` / `podMetricsEndpoints[].port` is a **named** port. Reads
+  `selectorLabels` (the Service/pod labels to match), `path` (default
+  `/metrics`), `scheme` (default `http`), `interval` (default `30s`),
+  `scrapeTimeout`, optional `relabelings` / `metricRelabelings`.
+
+For any other kind (`IngressRoute`, `NetworkPolicy`, `PrometheusRule`, …) the
+command uses the free-text authoring path against the SKILL.md checklist — no
+starter file. Additional starters are a later, additive change.
 
 **`references/prometheus-operator.md`** — the `serviceMonitorSelector` /
 `podMonitorSelector` / `ruleSelector` label-matching rules and the
 `…NilUsesHelmValues` flag; named-port requirement; `path`/`scheme`/`interval`
 defaults; `relabelings`/`metricRelabelings` basics; how to confirm a target is
 scraped (`/api/v1/targets`, `/api/v1/query`).
-
-**`references/traefik-ingressroute.md`** — `entryPoints`, `routes[].match`
-syntax, `kind: Rule`, service references and `port`, `Middleware` refs, TLS
-(`certResolver` vs a `Secret`), and that the `IngressRoute` CRD comes from the
-traefik chart.
 
 **`references/hooks-and-waves.md`** — sync-waves first (order within one sync;
 resources stay normal — visible, health-tracked, pruned). Hooks only for a
@@ -201,9 +184,9 @@ hooks. Hooks enter only if a *Job* manifest is added.
 /argocd-add-manifest <app> <kind> [--env <env>]
 ```
 
-- `<kind>` — a starter name (`servicemonitor`, `podmonitor`, `ingressroute`,
-  `httproute`, `ingress`, `networkpolicy`, `prometheusrule`) **or** free text
-  ("a CronJob that runs pg_dump nightly").
+- `<kind>` — a starter name (`servicemonitor`, `podmonitor`) **or** free text
+  for anything else ("a Traefik IngressRoute for the web port", "a CronJob that
+  runs pg_dump nightly").
 - **Follows the interaction contract** (`references/interaction-style.md`):
   announce each step, show commands + key output, checkpoint before `git push` /
   the PR.
@@ -219,10 +202,10 @@ hooks. Hooks enter only if a *Job* manifest is added.
      `charts/<app>/templates/<kind>.yaml`; adapt names/ports/paths; add the
      gating values stanza to `charts/<app>/values.yaml`. Free-text path: author
      from the skill's checklist.
-  5. If the kind needs a CRD (ServiceMonitor / PodMonitor / IngressRoute /
-     HTTPRoute / PrometheusRule): check the controller app exists in
-     `environments/*/apps/` and its sync-wave is lower than `<app>`'s. If not,
-     report that and stop before committing.
+  5. If the kind needs a CRD (ServiceMonitor / PodMonitor need the
+     Prometheus-Operator CRD; a free-text kind may need another): check the
+     controller app exists in `environments/*/apps/` and its sync-wave is lower
+     than `<app>`'s. If not, report that and stop before committing.
   6. Verify: `helm template charts/<app>` renders; if a cluster with the CRD is
      reachable, `helm template charts/<app> | kubectl apply --dry-run=server`.
   7. Bump `charts/<app>/Chart.yaml` `version`.
@@ -239,9 +222,9 @@ hooks. Hooks enter only if a *Job* manifest is added.
 - **`commands/argocd-add-chart.md`** / **`commands/argocd-deploy.md`** — one line
   each: "never adds `charts/<app>/templates/`; use `/argocd-add-manifest`".
 - **`skills/argocd-rollout/SKILL.md`** — functional-check table gets a row: "extra
-  manifest (ServiceMonitor / IngressRoute / …)" → verify it renders, the CRD
-  accepts it, and it does its job (a monitor's target is `up` in Prometheus; a
-  route resolves).
+  manifest" → verify it renders, the CRD accepts it, and it does its job (a
+  ServiceMonitor/PodMonitor's target is `up` in Prometheus and the app's metrics
+  are queryable).
 - **`README.md`** — command table + roadmap (note spec #2 to come).
 
 ## Testing
@@ -271,9 +254,8 @@ argocd-gitops-plugin/
 │   ├── argocd-extra-manifests/             # NEW
 │   │   ├── SKILL.md
 │   │   └── references/
-│   │       ├── starters/{servicemonitor,podmonitor,ingressroute,httproute,ingress,networkpolicy,prometheusrule}.yaml
+│   │       ├── starters/{servicemonitor,podmonitor}.yaml
 │   │       ├── prometheus-operator.md
-│   │       ├── traefik-ingressroute.md
 │   │       └── hooks-and-waves.md
 │   ├── argocd-repo-conventions/SKILL.md    # EDIT
 │   └── argocd-rollout/SKILL.md             # EDIT
@@ -291,9 +273,9 @@ argocd-gitops-plugin/
   upgrade renames it. Mitigation: the `fullnameOverride` rule makes names
   stable across upgrades for most charts; `/argocd-sync`'s functional check
   catches a monitor that stops scraping.
-- **Starter rot** — CRD schemas (ServiceMonitor, IngressRoute) evolve.
+- **Starter rot** — the ServiceMonitor / PodMonitor CRD schemas evolve.
   Mitigation: `test_starters.py` renders + parses them; the schemas are stable
   in practice; starters carry a "verified against" version comment.
-- **CRD ordering** — an IngressRoute synced before Traefik installs its CRD
-  fails. Mitigation: step 5 checks the controller app + sync-wave before
-  committing.
+- **CRD ordering** — a ServiceMonitor synced before kube-prometheus-stack
+  installs its CRD fails. Mitigation: step 5 checks the controller app +
+  sync-wave before committing.
