@@ -6,10 +6,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 EXPECTED_COMMANDS = {
     "argocd-bootstrap", "argocd-init-repo", "argocd-add-chart",
-    "argocd-deploy", "argocd-audit", "argocd-review-values",
+    "argocd-deploy", "argocd-audit", "argocd-review-values", "argocd-doctor",
 }
 EXPECTED_SKILLS = {
     "argocd-repo-conventions", "helm-chart-onboarding", "values-review",
+    "argocd-troubleshooting",
 }
 EXPECTED_AGENTS = {"argocd-onboarder"}
 
