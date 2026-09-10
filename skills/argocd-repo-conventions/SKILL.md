@@ -64,6 +64,33 @@ Get upstream defaults with `helm show values <chart> --repo <url> --version <v>`
 (for `oci://` charts: `helm show values oci://<registry>/<chart> --version <v>`,
 no `--repo`) and copy only the keys you change.
 
+Set `<chart-name>.fullnameOverride: <app>` when the chart honors it — it keeps
+generated resource names a predictable `<app>-<component>`. Some charts derive
+names from the release name (which Argo CD sets to the Application name) and
+produce `<app>-<component>` with no config; others honor `fullnameOverride`.
+Render and check — for a chart already producing `<app>-<component>`,
+`fullnameOverride` is a no-op, so don't add it.
+
+## Custom manifests
+
+A wrapper chart may carry your own manifests in `charts/<app>/templates/` —
+Helm renders them alongside the pinned upstream dependency, so you add resources
+the upstream chart lacks (a `ServiceMonitor`, an `IngressRoute`, a
+`NetworkPolicy`) without forking it.
+
+- Your templates target chart-generated resources by name (a parent chart can't
+  reliably call a subchart's `_helpers`). Some charts derive names from the
+  release name (which Argo CD sets to the Application name) and produce
+  `<app>-<component>` with no config; others honor
+  `<chart>.fullnameOverride: <app>`. Render and check — always
+  `helm template <app> charts/<app>` (release name `<app>`) and read the real
+  names first.
+- Every added manifest is gated on a top-level values flag (`serviceMonitor.enabled`).
+- A `templates/` change bumps `charts/<app>/Chart.yaml` `version`.
+- This is opt-in — `/argocd-add-chart` and `/argocd-deploy` never add templates.
+  Use `/argocd-add-manifest`. Full mechanism and conventions:
+  the `argocd-extra-manifests` skill.
+
 ## Application manifest
 
 Multi-source spec — see `reference/application-manifest.md` for every field.

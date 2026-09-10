@@ -84,3 +84,4 @@ summary.
   `argocd.argoproj.io/sync-wave: "-1"` (lower = earlier) under
   `metadata.annotations` of the dependency's `Application`, so the root app syncs
   it before the dependent one.
+- Never adds `charts/<app>/templates/`. To add your own manifests (ServiceMonitor, IngressRoute, …) use `/argocd-add-manifest`.

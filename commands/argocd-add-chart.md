@@ -56,3 +56,4 @@ opening the PR, end with a summary.
 
 - Never deploy here. Deployment is `/argocd-deploy <app> <env>`.
 - Never commit to the default branch directly.
+- Never adds `charts/<app>/templates/`. To add your own manifests (ServiceMonitor, IngressRoute, …) use `/argocd-add-manifest`.
