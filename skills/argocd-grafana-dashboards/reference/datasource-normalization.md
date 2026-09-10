@@ -81,8 +81,10 @@ A dashboard with **no** prometheus reference anywhere → the script exits non-z
   ConfigMaps are silently ignored.
 - Each **data key** in the ConfigMap becomes one dashboard. Multi-key ConfigMaps
   are fine.
-- The `datasource` template variable resolves against Grafana's default
-  Prometheus datasource on first load; a viewer can switch it.
+- The `datasource` template variable is given
+  `"current": {"text": "default", "value": "default"}` so it resolves to the
+  org's default datasource on load (leaving it `{}` renders every panel
+  "No data"); a viewer can switch it.
 - Grafana's `/api/search` returns folders too (`type: dash-folder`) — filter
   `type=dash-db` to list only dashboards.
 
