@@ -38,6 +38,11 @@ ArtifactHub API (`reference/artifacthub-api.md`), which lists `available_version
   one, or unless the latest requires a Kubernetes version newer than the target
   cluster (`helm show chart ... | grep kubeVersion`).
 - Pin the **exact** version. Never a range, never `*`, never omit.
+- **Check the chart's `appVersion` and image tag.** If `appVersion` is a
+  placeholder (e.g. `v0.61.1.x`, ends in `.x`, or is `latest`) the chart's
+  default `image.tag` will not resolve to a real tag and pods hang in
+  `ImagePullBackOff`. Look up a real tag (`curl` the registry's tag list, or the
+  chart docs) and pin `image.tag` explicitly in the wrapper `values.yaml`.
 
 ## Step 3 — pull upstream defaults
 

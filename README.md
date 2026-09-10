@@ -13,6 +13,7 @@ folder per **environment**, wired together with the app-of-apps pattern.
 | `/argocd-add-chart <app> [version]` | Research an upstream Helm chart, pin it, scaffold `charts/<app>/`, open a PR. |
 | `/argocd-deploy <app> <env>` | Wire a catalog app into an environment (`Application` + values overlay), open a PR. |
 | `/argocd-review-values <app> [env] [--profile dev\|prod] [--write]` | Check a chart's values against a dev/prod readiness rubric; optionally open a PR with a hardened overlay. |
+| `/argocd-doctor [app]` | Diagnose a stuck / Degraded / OutOfSync app — one-shot inspection, root cause, and the fix. |
 | `/argocd-audit [env]` | Read-only drift report: repo vs live Argo CD. |
 
 Plus the `argocd-onboarder` agent, which does add-chart -> deploy -> PR in one run.
@@ -64,8 +65,8 @@ doctor agent lands.
 ## Design & roadmap
 
 See `docs/superpowers/specs/2026-09-10-argocd-gitops-plugin-design.md`.
-Shipped from Phase 2: `values-review` / `/argocd-review-values`.
-Still to come — Phase 2: `/argocd-doctor` + `argocd-troubleshooting`.
+Phase 2 shipped: `values-review` / `/argocd-review-values`,
+`argocd-troubleshooting` / `/argocd-doctor`.
 Phase 3: `/argocd-add-env`, `/argocd-promote`, secrets.
 
 ## Development
