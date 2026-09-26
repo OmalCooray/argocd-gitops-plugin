@@ -1,4 +1,4 @@
-"""Validate the plugin manifest and .mcp.json shape."""
+"""Validate the plugin manifest."""
 import json
 import pathlib
 import re
@@ -39,11 +39,10 @@ def test_manifest_declares_no_custom_component_paths():
         assert key not in data, f"unexpected custom path for {key}"
 
 
-def test_mcp_example_present_and_no_active_mcp_json():
-    # The Argo CD MCP server ships as an inert .example so Claude Code does not
-    # auto-spawn it. An active .mcp.json must NOT be committed.
-    assert not (ROOT / ".mcp.json").exists(), "committed .mcp.json would auto-start the MCP server"
-    data = load(".mcp.json.example")
-    srv = data["mcpServers"]["argocd"]
-    for v in srv.get("env", {}).values():
-        assert v.startswith("${") and v.endswith("}")
+def test_plugin_is_shell_only_no_mcp():
+    # Every command works through the shell CLIs; no MCP config ships and no
+    # component depends on mcp__* tools.
+    assert not list(ROOT.glob(".mcp.json*")), "MCP config must not ship"
+    for sub in ("commands", "agents", "skills"):
+        for f in (ROOT / sub).rglob("*.md"):
+            assert "mcp__" not in f.read_text(encoding="utf-8"), f"{f} references an MCP tool"

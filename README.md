@@ -29,19 +29,48 @@ each step is announced, commands and their key output are shown, long operations
 one-line checkpoint before anything that changes a cluster or opens a PR — no
 silent background work, no health-polling loops.
 
-## Requirements
+## Prerequisites
 
-Install and put on `PATH`:
+Everything runs through your shell — no MCP servers, daemons, or extra services.
+The commands shell out to standard CLIs, so those must be installed and on `PATH`.
 
-- `git`
-- `gh` (GitHub CLI) — authenticated (`gh auth login`). Needed for repo creation
-  and PRs. Without it, commands print manual instructions instead of failing.
-- `helm` v3.8+
-- `kubectl`
-- `argocd` CLI — only for `/argocd-audit` against a live instance.
+**Environment**
 
-A reachable Kubernetes cluster is needed only for bootstrap and audit, not for
-scaffolding.
+- [Claude Code](https://claude.com/claude-code) with plugin support.
+- A **Bash** shell. macOS/Linux work out of the box; on Windows use **Git Bash or
+  WSL** (`cmd.exe` and PowerShell are not supported).
+- Network access to GitHub, your Helm chart repositories, and (for
+  `/argocd-add-dashboard`) grafana.com.
+
+**Tools** (minimums match [docs/SUPPORT.md](docs/SUPPORT.md))
+
+| Tool | Min | Needed for | Verify |
+|------|-----|------------|--------|
+| `git` | 2.30 | every command | `git --version` |
+| `gh` (GitHub CLI), logged in | 2.40 | creating the repo and opening PRs (`init-repo`, `add-chart`, `deploy`, `add-manifest`, `add-dashboard`, `review-values --write`). Without it the commands print manual steps instead. | `gh auth status` |
+| `helm` | 3.14 | `add-chart`, `deploy`, `add-manifest`, `add-dashboard`, `review-values`, and the generated `bootstrap/install.sh` | `helm version --short` |
+| `kubectl` | 1.28 | `bootstrap`, `audit`, `doctor`, `sync` | `kubectl version --client` |
+| `python` **+ PyYAML** | 3.10 | `deploy` (YAML validation), `add-dashboard` (the fetch script uses only the standard library) | `python -c "import yaml"` |
+| `argocd` CLI | 2.10 | *optional* — richer `audit`/`doctor`/`sync`; falls back to `kubectl` | `argocd version --client` |
+| `curl`, `jq` | any | *optional* — checking that Prometheus is scraping a new ServiceMonitor | `curl --version && jq --version` |
+
+Install PyYAML with `python -m pip install pyyaml`.
+
+**Cluster and accounts**
+
+- A Kubernetes cluster you can administer (kind, Docker Desktop, minikube, or a
+  managed cluster), reachable from your kubeconfig. Needed only for `bootstrap`,
+  `audit`, `doctor`, and `sync` — scaffolding (`init-repo`, `add-chart`, `deploy`)
+  works without one.
+- Argo CD **2.6 or newer** on the cluster (multi-source Applications are a hard
+  floor). `/argocd-bootstrap` installs it for you.
+- A GitHub account with permission to create repos and push branches.
+
+**Check your setup**
+
+```
+git --version && gh auth status && helm version --short   && kubectl version --client && python -c "import yaml; print('pyyaml ok')"
+```
 
 ## Install
 
@@ -62,16 +91,6 @@ cd data-platform-k8s-configs
 /argocd-deploy podinfo data-platform    # review + merge the PR
 /argocd-audit data-platform
 ```
-
-## Optional: Argo CD MCP
-
-`.mcp.json.example` ships the config for
-[Akuity's Argo CD MCP server](https://github.com/akuity/argocd-mcp). The plugin
-does not need it — every command and agent works with the `argocd`/`kubectl`
-CLIs. To enable it: copy `.mcp.json.example` to `.mcp.json` in the plugin root,
-set `ARGOCD_BASE_URL` and `ARGOCD_API_TOKEN` in your environment, and restart
-Claude Code. Useful for richer interactive troubleshooting once the Phase 2
-doctor agent lands.
 
 ## Design & roadmap
 

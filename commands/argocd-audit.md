@@ -21,7 +21,6 @@ a summary. This command is read-only, so no checkpoints are needed.
   `kubectl` against the Argo CD namespace. If neither works, run in **offline
   mode**: ask the user to paste `argocd app list -o json` (or
   `kubectl get applications -n argocd -o json`) output.
-- If `mcp__argocd__*` tools are available, use them instead of shelling out.
 
 ## Steps
 

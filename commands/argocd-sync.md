@@ -22,8 +22,7 @@ a fix PR or clearing a sync, no open-ended polling.
 
 - The app's git revision is already on the tracked branch (its deploy PR is
   merged). If not, tell the user to merge it first (or run `/argocd-deploy`).
-- A reachable cluster (`kubectl`); `argocd` CLI optional. `mcp__argocd__*` tools
-  used for reads if present.
+- A reachable cluster (`kubectl`); `argocd` CLI optional.
 
 ## Steps
 

@@ -5,6 +5,16 @@ This project follows semantic versioning.
 
 ## [Unreleased]
 
+### Changed
+- The plugin is now shell-only: every command and agent works through `git`, `gh`, `helm`, `kubectl`, and (optionally) `argocd`.
+- README "Requirements" replaced by a full **Prerequisites** section (environment, per-tool minimums and which commands need them, cluster/accounts, a one-line setup check).
+
+### Removed
+- The optional Argo CD MCP integration: `.mcp.json.example`, its README section, the "use `mcp__argocd__*` if present" instructions in `argocd-audit`, `argocd-doctor`, `argocd-sync`, and `argocd-onboarder`.
+
+### Added
+- `test_plugin_is_shell_only_no_mcp` guards against MCP config or `mcp__*` references creeping back in.
+
 ## [0.5.0] — 2026-09-10
 
 ### Added

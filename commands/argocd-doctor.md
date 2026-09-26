@@ -19,7 +19,6 @@ with the root-cause / evidence / fix summary.
 ## Preconditions
 
 - A reachable cluster (`kubectl`), and ideally the `argocd` CLI logged in.
-- If `mcp__argocd__*` tools are present, use them for the read-only queries.
 - No cluster? Run in offline mode — ask the user for the dumps listed in the
   `argocd-troubleshooting` skill.
 

@@ -21,8 +21,7 @@ directory, from nothing to an open PR.
   back to the caller, so "ask" means stop and report the question.
 - Load the plugin skills `helm-chart-onboarding` and `argocd-repo-conventions`
   before writing anything. Follow them exactly.
-- CLI-first: use `helm`, `kubectl`, `git`, `gh`. If `mcp__argocd__*` tools exist,
-  you may use them for read-only checks; never for writes.
+- CLI-only: use `helm`, `kubectl`, `git`, `gh` through the shell.
 - One branch for the whole onboarding: `onboard/<app>-<env>`.
 - Never deploy to a live cluster. Never commit to the default branch. Never
   force-push. Opening the PR with `gh` is the only outward action, and only after

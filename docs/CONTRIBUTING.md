@@ -21,8 +21,8 @@ Infra / docs chores can skip steps 1–2 but still land behind a reviewed PR.
   (`test_no_hardcoded_home_paths_in_components` + a grep).
 - No absolute or home paths in `commands/`, `agents/`, `skills/` — use
   `${CLAUDE_PLUGIN_ROOT}/...`.
-- No active `.mcp.json` committed — only `.mcp.json.example`
-  (`test_mcp_example_present_and_no_active_mcp_json`).
+- No MCP server dependency — every command works through the shell (`git`, `gh`,
+  `helm`, `kubectl`, `argocd`).
 - A `templates/` or `grafana-dashboards/` change in a wrapper chart bumps that
   chart's `Chart.yaml` `version`.
 - New command → add to `EXPECTED_COMMANDS`; new skill → `EXPECTED_SKILLS`
