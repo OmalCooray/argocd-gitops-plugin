@@ -12,7 +12,7 @@ The plugin's commands shell out to these. Versions below are what CI verifies
 | `argocd` CLI | 2.10 | — | optional — the commands fall back to `kubectl` |
 | `python` + PyYAML | 3.10 | 3.10, 3.12 | `scripts/helm_deps.sh` and `/argocd-deploy` validation need PyYAML; `fetch_dashboard.py` and `render_template.py` are stdlib only; also the test suite |
 | `ssh-keygen` (OpenSSH) | any | — | private GitOps repos only (Argo CD deploy key in `/argocd-bootstrap`) |
-| `bash` + POSIX tools (`awk`, `sort`, `comm`, `tr`, `mktemp`) | any | — | used by `scripts/*.sh`; ship with Git Bash, WSL, macOS, Linux. `jq` is NOT required |
+| `bash` + POSIX tools (`awk`, `sed`, `grep`, `sort`, `comm`, `tr`, `mktemp`, `base64`) | any | — | used by `scripts/*.sh` and inline command steps; ship with Git Bash, WSL, macOS, Linux. `shred` is optional (falls back to `rm`). `jq` is optional (used only in a Prometheus verification example) |
 | Argo CD (server / chart) | 2.6 / argo-cd chart 5.20 (first chart shipping Argo CD 2.6.0; 5.0–5.19 ship 2.4/2.5) | 3.5 / chart 10.8 | **2.6 is a hard floor** — multi-source Applications. `/argocd-bootstrap` pins the newest stable chart at run time (10.9.2 / v3.5.3, verified live 2026-09-27) |
 | Prometheus Operator | 0.7x | 0.9x | for `/argocd-add-manifest` ServiceMonitor/PodMonitor |
 

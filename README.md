@@ -3,7 +3,10 @@
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![ci](https://github.com/OmalCooray/argocd-gitops-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/OmalCooray/argocd-gitops-plugin/actions/workflows/ci.yml)
 
-A Claude Code plugin for running applications on Argo CD with GitOps. It
+A Claude Code plugin for running applications on Argo CD with GitOps. A Git repo
+becomes the single source of truth for what runs on your cluster; the plugin
+scaffolds that repo, onboards Helm charts, deploys them, drives each app to
+healthy, and audits drift between git and the live cluster. It
 scaffolds and operates a repo with a **catalog** of Helm wrapper charts and one
 folder per **environment**, wired together with the app-of-apps pattern.
 
@@ -67,10 +70,10 @@ The commands shell out to standard CLIs, so those must be installed and on `PATH
 | `helm` | 3.14 | `add-chart`, `deploy`, `add-manifest`, `add-dashboard`, `review-values`, and the generated `bootstrap/install.sh` | `helm version --short` |
 | `kubectl` | 1.28 | `bootstrap`, `audit`, `doctor`, `sync` | `kubectl version --client` |
 | `python` **+ PyYAML** | 3.10 | PyYAML is needed by `deploy` (YAML validation) and `scripts/helm_deps.sh` (used by `add-chart`, `review-values`, `doctor`, `add-manifest`, the onboarder); `add-dashboard`'s fetch script and the template renderer use only the standard library | `python -c "import yaml"` |
-| `ssh-keygen` (OpenSSH) | any | private GitOps repos only — `bootstrap` generates the Argo CD deploy key | `ssh-keygen -?` |
-| `awk`, `sort`, `comm`, `tr`, `mktemp` | any | the helper scripts in `scripts/`; ship with Git Bash, WSL, macOS and Linux | `awk --version` or `awk -W version` |
+| `ssh-keygen` (OpenSSH) | any | private GitOps repos only — `bootstrap` generates the Argo CD deploy key | `ssh -V` |
+| `awk`, `sed`, `grep`, `sort`, `comm`, `tr`, `mktemp`, `base64` | any | the helper scripts in `scripts/` and the inline commands in `bootstrap`, `add-chart`, `add-dashboard`, `review-values`; ship with Git Bash, WSL, macOS and Linux. `shred` is optional (`bootstrap` falls back to `rm`) | `awk 'BEGIN{print 1}'` |
 | `argocd` CLI | 2.10 | *optional* — the commands read state with `kubectl`; the CLI is only a convenience for you | `argocd version --client` |
-| `curl` | any | *optional* — checking that Prometheus is scraping a new ServiceMonitor or that a dashboard's metrics exist (`jq` is not required) | `curl --version` |
+| `curl` | any | *optional* — checking that Prometheus is scraping a new ServiceMonitor or that a dashboard's metrics exist (`jq` is optional: used only in a Prometheus verification example) | `curl --version` |
 
 Install PyYAML with `python -m pip install pyyaml`.
 
@@ -87,13 +90,13 @@ Install PyYAML with `python -m pip install pyyaml`.
 **Check your setup**
 
 ```
-git --version && gh auth status && helm version --short   && kubectl version --client && python -c "import yaml; print('pyyaml ok')"
+git --version && gh auth status && helm version --short && kubectl version --client && python -c "import yaml; print('pyyaml ok')"
 ```
 
 ## Safety model
 
 - **Target first.** Before touching a cluster, a command resolves the kube-context, prints a `Target:` line and asks
-  for a checkpoint; every `kubectl`/`helm` call then carries that `--context`
+  for a checkpoint; every cluster call (`kubectl`, `helm install/upgrade`) then carries an explicit context
   ([details](references/target-resolution.md)).
 - **No needless syncs.** `/argocd-sync` refreshes before syncing, exits when the app is already Synced and Healthy,
   and never force-syncs a healthy app.
@@ -107,17 +110,23 @@ git --version && gh auth status && helm version --short   && kubectl version --c
 
 ```
 /plugin marketplace add OmalCooray/argocd-gitops-plugin
-/plugin install argocd-gitops-plugin
+/plugin install argocd-gitops-plugin@argocd-gitops-plugin
 ```
 
-Or point Claude Code at a local checkout during development.
+The plugin and its marketplace share the same name, hence `<plugin>@<marketplace>`. Restart Claude Code or run
+`/reload-plugins` to pick it up. Update later with `/plugin marketplace update`.
+
+For development, point Claude Code at a local checkout with `--plugin-dir`:
+`claude --plugin-dir <path-to-checkout>`.
 
 ## Typical flow
+
+From nothing to a running, audited app:
 
 ```
 /argocd-init-repo data-platform-k8s-configs data-platform
 cd data-platform-k8s-configs
-/argocd-bootstrap docker-desktop        # then run ./bootstrap/install.sh
+/argocd-bootstrap docker-desktop --env data-platform   # then run ./bootstrap/install.sh
 /argocd-add-chart podinfo               # review + merge the PR
 /argocd-deploy podinfo data-platform    # review + merge the PR
 /argocd-audit data-platform

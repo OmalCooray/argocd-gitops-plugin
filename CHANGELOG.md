@@ -28,6 +28,7 @@ Live-test remediation: fixes for every defect found by running the plugin as a f
 - `/argocd-review-values`: works on own-app charts, renders with release name and namespace in a temp copy, explicit no-op `--write` handling and PR body (F11).
 - `/argocd-doctor` and `argocd-troubleshooting`: healthy and not-found branches, target line, new signatures, wrapper-chart key nesting, explicit `--fix` flow (F8).
 - `argocd-onboarder`: consistent guardrails, non-interactive rules, preconditions, fuller hand-off, `helm_deps.sh` instead of `helm repo add` (F9, F11).
+- `/argocd-bootstrap` arguments are now `[kube-context | --context <name>] [--env <environment>]`; the resolved context is passed to `install.sh` (F3, F6).
 - `install.sh` requires an explicit context and prints access hints; committed executable (F6, F7).
 - Every push/PR step follows the shared no-remote fallback (F12).
 
@@ -37,6 +38,7 @@ Live-test remediation: fixes for every defect found by running the plugin as a f
 - No command acts on an unconfirmed kube-context; `$ARGOCD_NS` and `$CTX` used consistently (F3).
 - `/argocd-add-dashboard`: no 0-byte or unusable output, datasource uids rewritten, legends relabelled to labels the metrics carry, LF line endings, no absolute paths in `__source` (F5).
 - `/argocd-init-repo`: no author-derived owner default, explicit visibility, renderer script for templates (F6).
+- `helm dependency build` failing with "no repository definition" when the user has no matching Helm repo list: `helm_deps.sh` and `render_chart.sh` use a private temporary repo list (F11).
 - Bootstrap: broken-pipe noise, missing UI/password hints, unexplained finalizer warning (F7).
 
 ### Removed

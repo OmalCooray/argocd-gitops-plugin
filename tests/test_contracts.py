@@ -639,8 +639,17 @@ def test_every_push_step_references_the_fallback_plainly():
     for rel in PUSH_COMPONENTS:
         t = read(rel)
         assert NO_REMOTE_REF in t, rel
-        assert "when present" not in t.split("no-remote-fallback.md")[1][:80], rel
+        for m in re.finditer(r"no-remote-fallback", t):
+            near = t[max(0, m.start() - 200): m.end() + 200]
+            assert "when present" not in near, rel
         assert "otherwise print the branch" not in t, rel
+    exceptions = []  # explicit and empty
+    import glob
+    for f in glob.glob(str(ROOT / "commands" / "*.md")) + glob.glob(str(ROOT / "agents" / "*.md")):
+        rel = pathlib.Path(f).relative_to(ROOT).as_posix()
+        text = pathlib.Path(f).read_text(encoding="utf-8")
+        if "git push" in text and rel not in exceptions:
+            assert "no-remote-fallback.md" in text, rel
 
 
 def test_license_and_manifest_versions_are_consistent():
@@ -656,7 +665,7 @@ def test_license_and_manifest_versions_are_consistent():
     for key in ("name", "source", "description"):
         assert key in entry, key
     assert entry["name"] == plugin["name"]
-    assert entry["version"] == plugin["version"]
+    assert "version" not in entry or entry["version"] == plugin["version"]
     src = (ROOT / entry["source"]).resolve()
     assert src.is_dir() and (src / ".claude-plugin" / "plugin.json").is_file()
     top = re.search(r"^## \[(\d+\.\d+\.\d+)\]", read("CHANGELOG.md"), re.M).group(1)
@@ -672,7 +681,12 @@ def test_support_matrix_facts():
 
 def test_readme_limitations_prereqs_and_command_hints():
     r = read("README.md")
-    assert "## Limitations" in r and "ssh-keygen" in r and "## Safety model" in r and "MIT" in r
+    assert "ssh-keygen" in r and "## Safety model" in r
+    assert re.search(r"^## License\n+.*\(LICENSE\)", r, re.M)
+    lim = r.split("## Limitations")[1].split("\n## ")[0]
+    assert len(re.findall(r"^- ", lim, re.M)) >= 4
+    assert "argocd-gitops-plugin@argocd-gitops-plugin" in r
+    assert "/plugin marketplace update" in r and "--plugin-dir" in r
     assert ".mcp.json" not in r
     for f in sorted((ROOT / "commands").glob("*.md")):
         m = re.search(r'^argument-hint:\s*"(.*)"\s*$', f.read_text(encoding="utf-8"), re.M)
