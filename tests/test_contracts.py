@@ -205,3 +205,43 @@ def test_audit_summary_line_template_is_complete():
     i = a.index("No drift")
     window = a[max(0, i - 200):i + 200]
     assert "unknown" in window and "0" in window
+
+
+def _refusal_subjects(text):
+    i = text.index("no override")
+    window = text[i:i + 400]
+    return sorted(set(re.findall(r"system:(?:authenticated|unauthenticated|anonymous)", window)))
+
+
+def test_add_manifest_has_guardrail_and_crd_path():
+    m = read("commands/argocd-add-manifest.md")
+    s = read("skills/argocd-extra-manifests/SKILL.md")
+    for needle in ("system:authenticated", "refuse", "enabled: false",
+                   "servicemonitors.monitoring.coreos.com", "prometheus-operator-crds", "sync-wave"):
+        assert needle in m, needle
+    assert "## Privileged kinds" in s
+
+    # (a) guardrail precedes the authoring instruction
+    assert m.index("privileged-kind guardrail") < m.index("author `charts/<app>/templates/<slug>.yaml`")
+
+    # (b) refusal is absolute and names all three subjects
+    assert _refusal_subjects(m) == ["system:anonymous", "system:authenticated", "system:unauthenticated"]
+    assert "`cluster-admin`" in m and "> This grants <X> to <Y>. Proceed?" in m
+
+    # (c)/(d) CRD check step
+    step6 = m.split("\n6. CRD check", 1)[1].split("\n7. Verify", 1)[0]
+    for needle in ("servicemonitors.monitoring.coreos.com", "podmonitors.monitoring.coreos.com",
+                   "prometheus-operator-crds", "sync-wave", "https://prometheus-community.github.io/helm-charts",
+                   "any provider", "kubectl --context \"$CTX\" get crd"):
+        assert needle in step6, needle
+    assert "report it and stop" not in step6
+
+    # gate default follows the CRD check
+    step5 = m.split("\n5. Add the gating values stanza", 1)[1].split("\n6. CRD check", 1)[0]
+    assert "finalized in step 6" in step5
+
+    # (e) skill mirrors the command
+    assert _refusal_subjects(s) == _refusal_subjects(m)
+    sp = s.split("## Privileged kinds", 1)[1]
+    for needle in ("system:masters", "enabled: false", "no override", "> This grants <X> to <Y>. Proceed?"):
+        assert needle in sp, needle

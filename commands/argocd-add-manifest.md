@@ -47,16 +47,29 @@ the PR, end with a summary.
    - starter kind: copy
      `${CLAUDE_PLUGIN_ROOT}/skills/argocd-extra-manifests/reference/starters/<kind>.yaml`
      → `charts/<app>/templates/<kind>.yaml` verbatim.
-   - free-text kind: author `charts/<app>/templates/<slug>.yaml` from the
-     `argocd-extra-manifests` checklist (gated, no subchart `_helpers`).
+   - free-text kind: first apply the **privileged-kind guardrail** below, then
+     author `charts/<app>/templates/<slug>.yaml` from the `argocd-extra-manifests` checklist (gated, no subchart `_helpers`).
+     A kind is *privileged* if it is a Role/RoleBinding/ClusterRole/ClusterRoleBinding, grants `*` verbs or resources,
+     binds `cluster-admin`, `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters`,
+     is a Validating/MutatingWebhookConfiguration or a CRD, or runs `privileged: true` / `hostPath` / `hostNetwork`.
+     For a privileged kind: (1) print one line saying exactly what it grants and to whom; (2) default its values gate to
+     `enabled: false`; (3) **refuse outright, with no override,** any binding of `cluster-admin` or `*`/`*` to
+     `system:authenticated`, `system:unauthenticated` or `system:anonymous` — do not author it even if the user insists
+     or says it is intentional; (4) checkpoint `> This grants <X> to <Y>. Proceed?` before committing.
 5. Add the gating values stanza to `charts/<app>/values.yaml` as a **top-level**
    key (not nested under the subchart) — for a ServiceMonitor:
-   `serviceMonitor: {enabled: true, selectorLabels: {...}, port: <name>, path: /metrics, interval: 30s}`
-   with `selectorLabels` / `port` filled from step 3.
-6. CRD check: if the kind needs a CRD (ServiceMonitor/PodMonitor → Prometheus
-   Operator), verify the owning app (`kube-prometheus-stack`) is in
-   `environments/<env>/apps/` and its sync-wave is lower than `<app>`'s. If not,
-   report it and stop before committing.
+   `serviceMonitor: {enabled: <bool>, selectorLabels: {...}, port: <name>, path: /metrics, interval: 30s}`
+   with `selectorLabels` / `port` filled from step 3. `enabled` is finalized in step 6: it ships `true` only if
+   the CRD check found a provider already in this env, otherwise `false`. A privileged kind always ships `false`.
+6. CRD check: if the kind needs a CRD (ServiceMonitor → `servicemonitors.monitoring.coreos.com`, PodMonitor →
+   `podmonitors.monitoring.coreos.com`), it is *provided* if EITHER some app in `environments/<env>/apps/` ships it
+   (`helm template` its wrapper chart and look for `kind: CustomResourceDefinition` with that name) OR the reachable
+   cluster has it (`kubectl --context "$CTX" get crd <name>`). Accept any provider — do not require a specific app name.
+   If a provider exists, set `enabled: true` in step 5 and require its sync-wave to be lower than `<app>`'s.
+   If none: do not stop silently. Set `enabled: false`, report it, and offer the light path:
+   `/argocd-add-chart prometheus-operator-crds` (repo `https://prometheus-community.github.io/helm-charts`) then
+   `/argocd-deploy prometheus-operator-crds <env>` with `argocd.argoproj.io/sync-wave: "-1"` (CRDs only, ~10 objects),
+   or `kube-prometheus-stack` for the full stack. Do not flip the gate to `true` until a provider is in the env.
 7. Verify:
    ```bash
    helm template <app> charts/<app>            # your manifest renders

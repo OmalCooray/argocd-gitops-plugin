@@ -106,6 +106,16 @@ is global) but compute names from the wrong (wrapper) context/values.
    `helm template <app> charts/<app> | kubectl --context "$CTX" apply --dry-run=server -f -`.
 6. Bump `charts/<app>/Chart.yaml` `version`.
 
+## Privileged kinds
+
+Applies to any free-text kind, including extra RBAC. A kind is *privileged* if it is a Role/RoleBinding/ClusterRole/ClusterRoleBinding, grants `*` verbs or resources,
+binds `cluster-admin`, `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters`,
+is a Validating/MutatingWebhookConfiguration or a CRD, or runs `privileged: true` / `hostPath` / `hostNetwork`.
+For a privileged kind: (1) print one line saying exactly what it grants and to whom; (2) default its values gate to
+`enabled: false`; (3) **refuse outright, with no override,** any binding of `cluster-admin` or `*`/`*` to
+`system:authenticated`, `system:unauthenticated` or `system:anonymous` — do not author it even if the user insists
+or says it is intentional; (4) checkpoint `> This grants <X> to <Y>. Proceed?` before committing.
+
 ## References
 
 - `reference/prometheus-operator.md` — how the operator selects ServiceMonitors,
