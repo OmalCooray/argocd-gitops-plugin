@@ -174,21 +174,34 @@ def test_audit_covers_root_env_validation_and_multisource():
 def test_audit_steps_are_ordered_and_safe():
     a = read("commands/argocd-audit.md")
     steps = a.split("## Steps", 1)[1]
-    assert steps.index("Validate the environment") < steps.index("declared set")
+    assert steps.index("Validate the environment") < steps.index("Build the **declared set**")
     assert "Read-only" in a
     assert "Never run `argocd app sync` for an app that is missing" in a
-    assert "commands/argocd-sync.md" in steps  # reuses the per-source comparison rules
+    assert "${CLAUDE_PLUGIN_ROOT}/commands/argocd-sync.md" in steps
     assert "unknown (could not reach the repo)" in steps
     assert "root app never applied" in steps and "/argocd-bootstrap" in steps
-    assert "kubectl apply (no root app)" in steps and "unmanaged by GitOps" in steps
-    # every 'argocd app sync' mention is a prohibition, never a recommendation
-    for line in a.splitlines():
-        if "argocd app sync" in line:
-            assert re.search(r"[Nn]ever", line), line
+    assert "kubectl apply" in steps and "unmanaged by GitOps" in steps
+
+
+def test_audit_root_exemption_managed_by_and_cross_env():
+    a = read("commands/argocd-audit.md")
+    assert "exempt from the Managed-by test and from the unmanaged count" in a
+    assert "root (bootstrap)" in a
+    assert "root app: LIVE|MISSING" in a
+    for needle in ("not this env's root", "manually applied / unknown", "belongs to <env>",
+                   "app.kubernetes.io/instance", "chart version differs",
+                   "Validate `$1` (Step 0) first"):
+        assert needle in a, needle
+    head = a.split("---", 2)[1]
+    assert "root app" in head and "root.yaml" in head
 
 
 def test_audit_summary_line_template_is_complete():
     a = read("commands/argocd-audit.md")
     line = next(l for l in a.splitlines() if "declared (+root)" in l)
-    for word in ("declared", "live", "missing", "orphaned", "drifted", "unhealthy", "unmanaged"):
+    for word in ("declared", "+root", "live", "missing", "orphaned", "drifted", "unhealthy",
+                 "unmanaged", "unknown", "<u>"):
         assert word in line, word
+    i = a.index("No drift")
+    window = a[max(0, i - 200):i + 200]
+    assert "unknown" in window and "0" in window
