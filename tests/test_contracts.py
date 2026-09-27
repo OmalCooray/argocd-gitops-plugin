@@ -332,5 +332,31 @@ def test_render_calls_match_template_placeholders():
         assert keys == expected, (cmd, tmpl, sorted(keys ^ expected))
         rendered.add(tmpl)
     never = sorted(p.name for p in (ROOT / "templates").glob("*.tmpl") if p.name not in rendered)
-    # 6b (argocd-bootstrap renders install.sh.tmpl) must flip this to [].
-    assert never == ["install.sh.tmpl"], never
+    assert never == [], never
+
+
+def test_bootstrap_handles_private_repos_with_a_deploy_key():
+    b = read("commands/argocd-bootstrap.md")
+    for needle in ("gh repo view", "ssh-keygen", "deploy-key add", "argocd.argoproj.io/secret-type=repository", "sshPrivateKey"):
+        assert needle in b, needle
+    assert "head -5" not in b
+    assert "read-only deploy key" in b
+    assert "--allow-write" not in b
+
+
+def test_bootstrap_private_repo_step_runs_after_install_and_before_final_check():
+    b = read("commands/argocd-bootstrap.md")
+    run = b.index('./bootstrap/install.sh "$CTX"')
+    priv = b.index("gh repo view")
+    assert run < priv < b.index("Synced")
+    assert "argocd.argoproj.io/refresh=hard" in b
+
+
+def test_bootstrap_never_prints_the_private_key():
+    b = read("commands/argocd-bootstrap.md")
+    for bad in ('cat "$KEY"', 'echo "$KEY"', "cat $KEY", "echo $KEY"):
+        assert bad not in b, bad
+
+
+def test_bootstrap_marks_install_script_executable():
+    assert "--chmod=+x" in read("commands/argocd-bootstrap.md")
