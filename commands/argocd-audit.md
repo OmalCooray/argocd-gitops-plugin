@@ -21,7 +21,7 @@ a summary. This command is read-only, so no checkpoints are needed.
 - A reachable cluster/Argo CD. Prefer the `argocd` CLI if logged in; else
   `kubectl` against the Argo CD namespace. If neither works, run in **offline
   mode**: ask the user to paste `argocd app list -o json` (or
-  `kubectl --context "$CTX" get applications -n $ARGOCD_NS -o json`) output.
+  `kubectl --context "$CTX" get applications -n "$ARGOCD_NS" -o json`) output.
 
 ## Steps
 
@@ -30,7 +30,7 @@ a summary. This command is read-only, so no checkpoints are needed.
 2. Build the **live set**:
    - `argocd app list -o json` → name, `spec`, `status.sync.status`,
      `status.health.status`, `status.sync.revision`.
-   - or `kubectl --context "$CTX" get applications -n $ARGOCD_NS -o json`.
+   - or `kubectl --context "$CTX" get applications -n "$ARGOCD_NS" -o json`.
 3. Report three tables:
    - **Missing in cluster**: declared but not live → root app not synced, or
      never bootstrapped.

@@ -30,7 +30,7 @@ a fix PR or clearing a sync, no open-ended polling.
 1. Load skills `argocd-rollout` and `argocd-troubleshooting`. Follow the rollout
    loop exactly.
 2. Read the app's destination namespace and sources from
-   `kubectl --context "$CTX" -n $ARGOCD_NS get application <app> -o json` (or the manifest in
+   `kubectl --context "$CTX" -n "$ARGOCD_NS" get application <app> -o json` (or the manifest in
    `environments/<env>/apps/<app>.yaml`).
 3. Run the loop: trigger sync → bounded watch (stated ceiling) → on stall,
    troubleshoot → fix as a git change → PR (checkpoint) → merge (checkpoint) →

@@ -5,6 +5,8 @@ description: How to take an upstream Helm chart into the Argo CD catalog — loc
 
 # Helm chart onboarding
 
+> `$CTX` and `$ARGOCD_NS` come from `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; the calling command must have resolved them. If they are unset, run that procedure first.
+
 ## Goal
 
 Produce `charts/<app>/Chart.yaml` (wrapper) and `charts/<app>/values.yaml`

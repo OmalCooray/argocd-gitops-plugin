@@ -35,11 +35,11 @@ silent background jobs or polling loops.
 4. Render `${CLAUDE_PLUGIN_ROOT}/templates/install.sh.tmpl` with these variables:
    `ARGOCD_NAMESPACE`, `ARGOCD_CHART_VERSION`, `ENV_NAME`, `GITOPS_REPO_URL`.
 5. Write it to `bootstrap/install.sh`, `chmod +x` it. Show the rendered script.
-6. **Checkpoint:** `> Run ./bootstrap/install.sh against context <ctx> now? It
+6. **Checkpoint:** `> Run ./bootstrap/install.sh against context "$CTX" now? It
    installs Argo CD (~3 min) and applies the root app.` Wait for yes.
-7. On yes, run it **in the foreground** so its output (helm progress, CRD wait,
+7. On yes, run `./bootstrap/install.sh "$CTX"` **in the foreground** so its output (helm progress, CRD wait,
    root-app apply) streams into the conversation. Do not background it. When it
-   returns, run `kubectl --context "$CTX" get applications -n $ARGOCD_NS` once and show the
+   returns, run `kubectl --context "$CTX" get applications -n "$ARGOCD_NS"` once and show the
    result. On no, just print the command for them to run later.
 
 ## Output

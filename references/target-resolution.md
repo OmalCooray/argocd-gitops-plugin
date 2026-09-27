@@ -5,7 +5,9 @@ also has a production cluster that is a silent foot-gun, so resolve and confirm
 the target before the first cluster command.
 
 1. Read `.claude/CLAUDE.md` in the GitOps repo: `Argo CD namespace` → `ARGOCD_NS`,
-   `GitOps repo URL` → `REPO_URL`. (Never assume `argocd`.)
+   `GitOps repo URL` → `REPO_URL`. If the file is missing or lacks either line, ask
+   the user for the missing value (suggest `argocd` and `git remote get-url origin`
+   as defaults); never assume them silently.
 2. Choose the kube-context `CTX`: the value of `--context <name>` if the user gave
    one, otherwise the output of `kubectl config current-context` (read-only).
 3. Print exactly one line: `Target: context=<CTX>  argocd-ns=<ARGOCD_NS>  repo=<REPO_URL>`.
@@ -18,3 +20,6 @@ the target before the first cluster command.
 6. Every later cluster command carries `--context "<CTX>"`; `helm install|upgrade|list`
    carry `--kube-context "<CTX>"`. Local-only helm (`template|lint|show|dependency|search|repo`)
    needs neither. Never `kubectl config use-context`.
+   The `argocd` CLI targets its own logged-in server (`argocd context`), not the
+   kube-context; prefer `kubectl` unless you have confirmed `argocd context`
+   points at the same cluster.

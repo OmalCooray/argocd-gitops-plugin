@@ -5,6 +5,8 @@ description: Add your own templated Kubernetes manifests (ServiceMonitor, PodMon
 
 # Extra manifests in a wrapper chart
 
+> `$CTX` and `$ARGOCD_NS` come from `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; the calling command must have resolved them. If they are unset, run that procedure first.
+
 ## Mechanism
 
 A wrapper chart (`charts/<app>/`) is itself a real Helm chart. It can carry its

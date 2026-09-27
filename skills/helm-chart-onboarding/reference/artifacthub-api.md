@@ -32,7 +32,7 @@ GET /packages/helm/<repo-name>/<chart-name>/<version>
 1. Filter `available_versions` to `prerelease == false`.
 2. Sort by semver descending.
 3. Take the first whose `data.kubeVersion` (if present) is satisfied by the
-   target cluster's server version (`kubectl version -o json`).
+   target cluster's server version (`kubectl --context "$CTX" version -o json`).
 
 ## Notes
 

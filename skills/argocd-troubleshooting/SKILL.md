@@ -5,6 +5,8 @@ description: Diagnose a stuck, degraded, or OutOfSync Argo CD application — re
 
 # Argo CD troubleshooting
 
+> `$CTX` and `$ARGOCD_NS` come from `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; the calling command must have resolved them. If they are unset, run that procedure first.
+
 Work from evidence, top down. Do **not** wait in a loop for something to become
 healthy — inspect it once, decide if it is progressing or stuck, and if stuck,
 find why.
@@ -14,7 +16,7 @@ find why.
 ```bash
 argocd app get <app> -o json            # if the CLI is logged in
 # or:
-kubectl --context "$CTX" -n $ARGOCD_NS get application <app> -o json
+kubectl --context "$CTX" -n "$ARGOCD_NS" get application <app> -o json
 ```
 
 Read, in this order:
@@ -79,10 +81,10 @@ reverts it and the drift hides the real problem.
 
 ```bash
 # usually enough for an app with syncPolicy.automated:
-kubectl --context "$CTX" -n $ARGOCD_NS annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context "$CTX" -n "$ARGOCD_NS" annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 
 # force an explicit sync by writing the operation:
-kubectl --context "$CTX" -n $ARGOCD_NS patch application <app> --type merge -p \
+kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p \
   '{"operation":{"initiatedBy":{"username":"troubleshooting"},"sync":{"revision":"HEAD","syncStrategy":{"apply":{"force":true}}}}}'
 ```
 
@@ -97,9 +99,9 @@ needs to fix.
 **Recipe** (after the fix is merged to the tracked branch):
 
 ```bash
-kubectl --context "$CTX" -n $ARGOCD_NS patch application <app> --type merge -p '{"operation":null}'
-kubectl --context "$CTX" -n $ARGOCD_NS patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
-kubectl --context "$CTX" -n $ARGOCD_NS annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p '{"operation":null}'
+kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
+kubectl --context "$CTX" -n "$ARGOCD_NS" annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 # if automated sync doesn't re-trigger within ~30s, force it with the patch above
 ```
 
@@ -109,7 +111,7 @@ The only direct cluster actions troubleshooting ever takes: trigger/clear a sync
 ## Offline mode
 
 No cluster access? Ask the user to paste:
-- `argocd app get <app> -o yaml` (or `kubectl --context "$CTX" get application <app> -n $ARGOCD_NS -o yaml`)
+- `argocd app get <app> -o yaml` (or `kubectl --context "$CTX" get application <app> -n "$ARGOCD_NS" -o yaml`)
 - `kubectl --context "$CTX" get pods -n <dest-ns> -o wide`
 - `kubectl --context "$CTX" describe pod <failing-pod> -n <dest-ns>`
 - `kubectl --context "$CTX" logs <failing-pod> -n <dest-ns> --all-containers --tail=100`
