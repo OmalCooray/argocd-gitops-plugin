@@ -254,7 +254,7 @@ def test_add_manifest_has_guardrail_and_crd_path():
     for needle in ("servicemonitors.monitoring.coreos.com", "podmonitors.monitoring.coreos.com",
                    "prometheus-operator-crds", "sync-wave", "https://prometheus-community.github.io/helm-charts",
                    "any provider", "kubectl --context \"$CTX\" get crd", "--include-crds",
-                   "helm dependency build \"$T/", "crds.enabled: false",
+                   "scripts/list_crds.sh", "crds.enabled: false",
                    "argocd.argoproj.io/sync-wave", "missing annotation means",
                    "strictly lower", "serviceMonitor.enabled: true", "podMonitor.enabled"):
         assert needle in step6, needle
@@ -523,7 +523,7 @@ def test_chart_notes_and_crd_provider_handling():
     assert any(h.startswith("## metrics-server") for h in headings)
     assert any(h.startswith("## kube-prometheus-stack") for h in headings)
     ac = read("commands/argocd-add-chart.md")
-    assert "CustomResourceDefinition" in ac and "--include-crds" in ac and "mktemp" in ac
+    assert "CustomResourceDefinition" in ac and "list_crds.sh" in ac
     assert "local clusters only" in ac
     dp = read("commands/argocd-deploy.md")
     assert "sync-wave" in dp and "CRD" in dp and 'metadata.annotations["argocd.argoproj.io/sync-wave"]' in dp
@@ -534,6 +534,10 @@ def test_chart_notes_and_crd_provider_handling():
 def test_every_referenced_chart_notes_section_exists():
     notes = read("skills/values-review/reference/chart-notes.md")
     headings = [ln[3:].strip().lower() for ln in notes.splitlines() if ln.startswith("## ")]
+
+    def has(name):
+        return any(h == name or (h.startswith(name) and h[len(name)] in " (") for h in headings)
+
     pat = re.compile(r"([\w\-]+) section of\s+`[^`]*chart-notes\.md`")
     found = []
     for rel in scanned_files():
@@ -541,4 +545,24 @@ def test_every_referenced_chart_notes_section_exists():
             found.append((rel, m.group(1)))
     assert found, "no chart-notes section references parsed"
     for rel, name in found:
-        assert any(h.startswith(name.lower()) for h in headings), (rel, name)
+        assert has(name.lower()), (rel, name)
+    # other reference forms: "e.g. <chart> needs ..." / "(e.g. <chart> ...)" next to a chart-notes path
+    for rel, chart in (("agents/argocd-onboarder.md", "metrics-server"),
+                       ("commands/argocd-deploy.md", "metrics-server"),
+                       ("commands/argocd-add-dashboard.md", "kube-prometheus-stack"),
+                       ("commands/argocd-add-chart.md", "kube-prometheus-stack")):
+        text = re.sub(r"\s+", " ", read(rel))
+        assert "chart-notes.md" in text and chart in text, (rel, chart)
+        assert has(chart), chart
+
+
+def test_list_crds_script_is_the_single_crd_detector():
+    for rel in ("commands/argocd-add-chart.md", "commands/argocd-add-manifest.md", "commands/argocd-deploy.md"):
+        t = read(rel)
+        assert '"${CLAUDE_PLUGIN_ROOT}/scripts/list_crds.sh"' in t, rel
+        assert "crds()" not in t and "awk" not in t, rel
+    assert "(CRD provider)" in read("commands/argocd-deploy.md")
+    assert "(CRD provider)" in read("commands/argocd-add-chart.md")
+    n = read("skills/values-review/reference/chart-notes.md")
+    for k in ("probeSelectorNilUsesHelmValues", "scrapeConfigSelectorNilUsesHelmValues", "retention"):
+        assert k in n, k

@@ -50,27 +50,30 @@ opening the PR, end with a summary.
    note marks "local clusters only" (e.g. metrics-server `--kubelet-insecure-tls`, the kube-prometheus-stack light
    demo profile) never goes in the catalog: tell the user it belongs in the env overlay and is added by
    `/argocd-deploy`. Re-run step 5's `helm lint` afterwards.
-5b. **CRD ownership check.** Render in a TEMP COPY (`helm dependency build` rewrites `Chart.lock`, and `helm template`
-   skips a chart's `crds/` directory without `--include-crds`) and list the CRD names. Define once, in one Bash call:
+5b. **CRD ownership check.** (Does the chart render any `CustomResourceDefinition`?) One script does the detection (temp-copy render with `--include-crds`; your tree and
+   `Chart.lock` are untouched; prints only the CRD names, sorted, one per line):
    ```bash
-   crds() {  # crds <catalog-dir-name> <namespace>  ->  sorted CRD names
-     tmp="$(mktemp -d)"; cp -r "charts/$1" "$tmp/"; helm dependency build "$tmp/$1" >/dev/null
-     helm template "$1" "$tmp/$1" -n "$2" --include-crds | awk 'function f(){if(k&&n!="")print n;k=0;n="";m=0} /^---/{f();next} /^kind: CustomResourceDefinition[ 	]*$/{k=1} /^metadata:/{m=1;next} m&&/^  name:/{n=$2;m=0;next} /^[A-Za-z]/{m=0} END{f()}' | sort
-   }
+   o="$(mktemp -d)"
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/list_crds.sh" charts/<app> --namespace <ns> > "$o/mine"; cat "$o/mine"
    ```
-   If the list is empty, nothing more to do. Otherwise this app is a **CRD provider**: tell the user, and say that
-   `/argocd-deploy` will offer a sync-wave `"-1"` for it. Then check for overlap with every other catalog chart:
+   If it exits non-zero, show its `error:` line and stop. If the list is empty, nothing more to do. Otherwise this app
+   is a **CRD provider**: tell the user, remember it for step 7, and say `/argocd-deploy` will offer a sync-wave `"-1"`.
+   Then check for overlap with every other catalog chart:
    ```bash
-   o="$(mktemp -d)"; crds <app> <ns> > "$o/mine"; cat "$o/mine"      # the CRD names this app renders
-   for c in charts/*; do c="${c#charts/}"; [ "$c" = "<app>" ] && continue
-     crds "$c" "$c" > "$o/other"; comm -12 "$o/mine" "$o/other" | sed "s/^/$c also renders: /"; done
+   for c in charts/*/; do n="$(basename "$c")"; [ "$n" = "<app>" ] && continue
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/list_crds.sh" "$c" > "$o/other" || continue
+     comm -12 "$o/mine" "$o/other" | sed "s/^/$n also renders: /"; done
    ```
-   (`<ns>` is only a render namespace for the overlap comparison, it does not affect CRD names.) If any line prints, warn that two apps would own the
-   same CRDs and propose `<chart>.crds.enabled: false` (read `helm show values` for the exact key) on the *consumer* side,
-   in that consumer's env overlay. Do not edit the other chart here.
+   (`<ns>` is only a render namespace; it does not affect CRD names. Delete `$o` afterwards.) If a line prints, name the
+   roles: the chart that OWNS standalone CRDs (e.g. `prometheus-operator-crds`) is the **provider**; a chart that
+   BUNDLES the same CRDs (e.g. `kube-prometheus-stack`) is the **consumer**. On the consumer set
+   `<dependency-name>.crds.enabled: false` in its env overlay, but only after confirming with `helm show values` that the
+   chart has a top-level `crds:` with `enabled`. If the key is absent, or is per-CRD (like `crds.<name>.enabled`),
+   do NOT guess: tell the user about the overlap and stop for a decision. Do not edit the other chart here.
 6. Commit `charts/<app>/Chart.yaml`, `charts/<app>/values.yaml`,
    `charts/<app>/Chart.lock`. (Do not commit `charts/<app>/charts/*.tgz`.)
-7. Update `.claude/CLAUDE.md` catalog inventory table; commit that too.
+7. Update `.claude/CLAUDE.md` catalog inventory table; commit that too. If step 5b found CRDs, append ` (CRD provider)`
+   to the app's cell in its row (e.g. `prometheus-operator-crds (CRD provider)`): `/argocd-deploy` reads this marker.
 8. Show the user the rendered file(s) and the drafted PR title + body, and ask
    them to confirm before pushing. If they decline, leave the commits on the
    local branch and stop.
@@ -84,7 +87,6 @@ opening the PR, end with a summary.
 
 ## Notes
 
-- CRD names are listed by a text filter (not a YAML parser: real CRDs contain YAML tags PyYAML rejects); it needs no `jq`.
 - Never deploy here. Deployment is `/argocd-deploy <app> <env>`.
 - Never commit to the default branch directly.
 - Never adds `charts/<app>/templates/`. To add your own manifests (ServiceMonitor, IngressRoute, …) use `/argocd-add-manifest`.

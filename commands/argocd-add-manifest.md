@@ -64,12 +64,14 @@ the PR, end with a summary.
    `podmonitors.monitoring.coreos.com`), it is *provided* if EITHER some app in `environments/<env>/apps/` ships it
    OR the reachable cluster has it (`kubectl --context "$CTX" get crd <name>`). Accept any provider — do not require a
    specific app name.
-   - **Declared provider:** for each other app, render in a temp copy, never on the user's tree (`helm dependency build`
-     rewrites `Chart.lock`): `T=$(mktemp -d); cp -r charts/<other> "$T/"`, then `helm dependency build "$T/<other>"`, then
-     `helm template <other> "$T/<other>" -n <its-dest-ns> -f environments/<env>/values/<other>.yaml --include-crds`
-     (add `-f` only if that values file exists), and grep the output for `kind: CustomResourceDefinition` together with
-     `name: <crd>`. `--include-crds` is required: `helm template` skips a chart's `crds/` directory without it. The env
-     values must be included because an overlay setting `crds.enabled: false` legitimately removes the CRD.
+   - **Declared provider:** for each other app in `environments/<env>/apps/`, list the CRDs its wrapper chart renders
+     with the shared detector (temp-copy render with `--include-crds`; never touches the user's tree or `Chart.lock`):
+     ```bash
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/list_crds.sh" charts/<other> --namespace <its-dest-ns>        --values environments/<env>/values/<other>.yaml    # omit --values if that file does not exist
+     ```
+     and check whether `<crd>` is in its output. The env values matter: an overlay setting `crds.enabled: false`
+     legitimately removes the CRD. A `(CRD provider)` marker in the `.claude/CLAUDE.md` catalog inventory is a hint only;
+     the script's output decides. A non-zero exit prints an `error:` line: show it and treat that app as unknown.
    - **Sync-wave:** read each app's wave from `metadata.annotations["argocd.argoproj.io/sync-wave"]` in
      `environments/<env>/apps/<app>.yaml`; a missing annotation means wave 0. The provider's wave must be strictly lower
      than `<app>`'s; if not, tell the user to set the provider app to `"-1"` (do not edit it in this command). A provider

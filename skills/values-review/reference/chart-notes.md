@@ -138,7 +138,7 @@ The chart appends `args` after its defaults (verified with `helm template` of ch
 ## kube-prometheus-stack (verified live 2026-09-27; key paths re-checked against chart 91.7.0 values)
 
 Set in `charts/kube-prometheus-stack/values.yaml` (base, environment-agnostic) when the catalog entry is created, or
-ServiceMonitors/PodMonitors/rules from other apps are never scraped (the Prometheus CR's selector defaults to `release: <name>`):
+ServiceMonitors/PodMonitors/Probes/ScrapeConfigs/rules from other apps are never scraped (the Prometheus CR's selector defaults to `release: <name>`):
 
 ```yaml
 kube-prometheus-stack:
@@ -147,6 +147,8 @@ kube-prometheus-stack:
       serviceMonitorSelectorNilUsesHelmValues: false
       podMonitorSelectorNilUsesHelmValues: false
       ruleSelectorNilUsesHelmValues: false
+      probeSelectorNilUsesHelmValues: false
+      scrapeConfigSelectorNilUsesHelmValues: false
   grafana:
     sidecar:
       dashboards:
@@ -169,3 +171,7 @@ keys of the bundled Grafana subchart; `folderAnnotation` requires `foldersFromFi
 - Light demo profile for kind (env overlay, `# local clusters only`): `alertmanager.enabled: false`,
   `nodeExporter.enabled: false`, `kubeControllerManager.enabled: false`, `kubeScheduler.enabled: false`,
   `kubeEtcd.enabled: false`, `kubeProxy.enabled: false` (the control-plane scrapes fail on kind).
+- Sizing for kind (illustrative, local clusters only, env overlay): the chart sets no Prometheus resources and keeps
+  `retention: 10d` by default, which is a lot for a small node. For a demo use e.g.
+  `prometheus.prometheusSpec.resources.requests: {cpu: 200m, memory: 512Mi}` and
+  `prometheus.prometheusSpec.retention: 6h`. Size real clusters from your own series count, not from these numbers.

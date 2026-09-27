@@ -55,9 +55,15 @@ summary.
      APP_NAME=<app> ENV_NAME=<env> NAMESPACE=<app-namespace> ARGOCD_NAMESPACE=<argocd-namespace> \
      GITOPS_REPO_URL=<gitops-repo-url> TARGET_REVISION=<rev> DEST_SERVER=<server>
    ```
-5a. **Sync-wave for CRD providers.** If the catalog chart renders `CustomResourceDefinition`s (the CRD ownership check
-   in `/argocd-add-chart` step 5b; re-run it if unsure) or is a known operator/CRD chart (`prometheus-operator-crds`,
-   `cert-manager`, `kube-prometheus-stack`), ask
+5a. **Sync-wave for CRD providers.** Decide whether `<app>` provides CRDs: (1) its row in the `.claude/CLAUDE.md`
+   catalog inventory carries the `(CRD provider)` marker (set by `/argocd-add-chart`); or, when the marker is absent
+   (chart added by hand or before this feature), (2) re-run the detector on it:
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/list_crds.sh" charts/<app> --namespace <app-namespace>      --values environments/<env>/values/<app>.yaml   # omit --values if that file does not exist yet
+   ```
+   (non-empty output = provider; a non-zero exit prints an `error:` line: show it and ask the user). Known CRD/operator
+   charts (`prometheus-operator-crds`, `cert-manager`, `kube-prometheus-stack`) are only a fallback hint if the script
+   cannot run. If `<app>` provides CRDs, ask
    `> This app provides CRDs. Add sync-wave "-1" so it syncs before apps that use them? (yes/no)` (default yes).
    On yes, after rendering, add under `metadata.annotations:` of `environments/<env>/apps/<app>.yaml` (the template has
    no annotations slot; add the key `annotations:` between `namespace:` and `finalizers:` only if it is absent):
