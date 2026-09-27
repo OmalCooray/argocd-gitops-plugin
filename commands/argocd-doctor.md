@@ -1,7 +1,7 @@
 ---
 name: argocd-doctor
 description: Diagnose a stuck / Degraded / OutOfSync Argo CD application — inspect the app status and resource tree once (no waiting loops), find the failing object, name the root cause and the fix. Read-only; proposes a git change, does not apply workarounds to the cluster.
-argument-hint: "[app-name]  (omit to triage every app in the env)"
+argument-hint: "[app-name]  (omit to triage every app in the env) [--context <name>]"
 ---
 
 Diagnose why an Argo CD app is not `Synced` / `Healthy`.
@@ -18,6 +18,7 @@ with the root-cause / evidence / fix summary.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - A reachable cluster (`kubectl`), and ideally the `argocd` CLI logged in.
 - No cluster? Run in offline mode — ask the user for the dumps listed in the
   `argocd-troubleshooting` skill.

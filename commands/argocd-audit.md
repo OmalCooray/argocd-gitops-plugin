@@ -1,7 +1,7 @@
 ---
 name: argocd-audit
 description: Read-only drift report — compare the Argo CD Applications declared in environments/<env>/apps/ against what a live cluster actually has, and against each app's sync/health status. Changes nothing.
-argument-hint: "[environment-name]"
+argument-hint: "[environment-name] [--context <name>]"
 ---
 
 Report drift between the GitOps repo and a live Argo CD instance.
@@ -16,6 +16,7 @@ a summary. This command is read-only, so no checkpoints are needed.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - CWD is a GitOps repo.
 - A reachable cluster/Argo CD. Prefer the `argocd` CLI if logged in; else
   `kubectl` against the Argo CD namespace. If neither works, run in **offline
@@ -29,7 +30,7 @@ a summary. This command is read-only, so no checkpoints are needed.
 2. Build the **live set**:
    - `argocd app list -o json` → name, `spec`, `status.sync.status`,
      `status.health.status`, `status.sync.revision`.
-   - or `kubectl get applications -n <argocd-ns> -o json`.
+   - or `kubectl get applications -n $ARGOCD_NS -o json`.
 3. Report three tables:
    - **Missing in cluster**: declared but not live → root app not synced, or
      never bootstrapped.

@@ -80,7 +80,7 @@ name), because that is how Helm routes subchart values:
 ```bash
 helm dependency build charts/<app>
 helm lint charts/<app>
-helm template charts/<app> | kubectl apply --dry-run=client -f -   # if a cluster is reachable
+helm template charts/<app> | kubectl --context "$CTX" apply --dry-run=client -f -   # if a cluster is reachable
 ```
 
 All three must pass. `helm dependency build` writes `Chart.lock` and

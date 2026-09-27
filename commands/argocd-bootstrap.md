@@ -1,7 +1,7 @@
 ---
 name: argocd-bootstrap
 description: Generate or refresh bootstrap/install.sh for a GitOps repo — the one-time script that installs Argo CD on a cluster and applies the environment's root application.
-argument-hint: "[kube-context]"
+argument-hint: "[kube-context] [--context <name>]"
 ---
 
 You are generating `bootstrap/install.sh` for the Argo CD GitOps repo in the
@@ -14,6 +14,7 @@ silent background jobs or polling loops.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - CWD is a GitOps repo created by `/argocd-init-repo` (has `environments/<env>/`
   and `.claude/CLAUDE.md`). If not, tell the user to run `/argocd-init-repo` first.
 - Read `.claude/CLAUDE.md` for: Argo CD namespace, environment name(s), GitOps
@@ -38,7 +39,7 @@ silent background jobs or polling loops.
    installs Argo CD (~3 min) and applies the root app.` Wait for yes.
 7. On yes, run it **in the foreground** so its output (helm progress, CRD wait,
    root-app apply) streams into the conversation. Do not background it. When it
-   returns, run `kubectl get applications -n <argocd-ns>` once and show the
+   returns, run `kubectl get applications -n $ARGOCD_NS` once and show the
    result. On no, just print the command for them to run later.
 
 ## Output

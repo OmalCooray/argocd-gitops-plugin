@@ -1,7 +1,7 @@
 ---
 name: argocd-deploy
 description: Deploy a catalog app to an environment — generate environments/<env>/apps/<app>.yaml (multi-source Argo CD Application) plus an empty per-env values overlay, verify, and open a PR.
-argument-hint: "<app-name> <environment-name>"
+argument-hint: "<app-name> <environment-name> [--context <name>]"
 ---
 
 Wire an existing catalog chart into an environment.
@@ -18,6 +18,7 @@ summary.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - CWD is a GitOps repo. `charts/<app>/Chart.yaml` exists — if not, tell the user
   to run `/argocd-add-chart` first.
 - `environments/<env>/` exists. If it does not: Phase 1 has no command to add an
@@ -53,7 +54,7 @@ summary.
    ```
 7. Verify:
    ```bash
-   kubectl apply --dry-run=client -f environments/<env>/apps/<app>.yaml
+   kubectl --context "$CTX" apply --dry-run=client -f environments/<env>/apps/<app>.yaml
    ```
    (If Argo CD CRDs aren't on the reachable cluster, fall back to a YAML parse
    check: `python -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" environments/<env>/apps/<app>.yaml`.)

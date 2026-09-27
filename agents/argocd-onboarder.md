@@ -32,6 +32,7 @@ directory, from nothing to an open PR.
 
 ## Sequence
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 1. Confirm CWD is a GitOps repo (`charts/`, `environments/`, `.claude/CLAUDE.md`).
    If not, stop and report.
 2. Resolve chart: name, exact version, Helm repo URL (ArtifactHub via WebFetch if

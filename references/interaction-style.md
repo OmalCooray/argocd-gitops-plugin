@@ -35,6 +35,7 @@ in control of the big moves. This overrides any default toward "just do it".
 - `kubectl delete` of anything, or a prune
 - `git push` + opening a PR (show the branch name and PR title first)
 - creating a GitHub repo
+- acting on a cluster whose kube-context the user did not name — run `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md` first and print the `Target:` line.
 
 A checkpoint is `> About to <X>. Proceed?` — not a paragraph. If the person
 already said "go ahead and don't ask", honour that for the rest of the run.

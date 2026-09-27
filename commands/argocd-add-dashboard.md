@@ -1,7 +1,7 @@
 ---
 name: argocd-add-dashboard
 description: Import a community Grafana dashboard for an app — fetch it (grafana.com id / URL / file), normalize its datasource references, commit it under charts/<app>/grafana-dashboards/, render it as a sidecar ConfigMap in a per-app Grafana folder, and open a PR. Opt-in; requires the app to already be scraped.
-argument-hint: "<app> <source>   (source: grafana.com id | https URL | local .json)"
+argument-hint: "<app> <source>   (source: grafana.com id | https URL | local .json) [--context <name>]"
 ---
 
 Import an open-source Grafana dashboard into `charts/<app>/`. Runs only when
@@ -21,6 +21,7 @@ the PR, end with a summary.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - CWD is a GitOps repo (`charts/`, `environments/`, `.claude/CLAUDE.md`).
 - `python` and `helm` available.
 
@@ -52,7 +53,7 @@ the PR, end with a summary.
 7. Verify:
    ```bash
    helm template <app> charts/<app>                           # ConfigMap renders, dashboard is a data key
-   helm template <app> charts/<app> | kubectl apply --dry-run=server -f -   # if a cluster is reachable
+   helm template <app> charts/<app> | kubectl --context "$CTX" apply --dry-run=server -f -   # if a cluster is reachable
    ```
    Check the rendered ConfigMap is < 1 MB.
 8. Bump `charts/<app>/Chart.yaml` `version`.

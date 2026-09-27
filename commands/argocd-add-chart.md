@@ -1,7 +1,7 @@
 ---
 name: argocd-add-chart
 description: Add an upstream Helm chart to the GitOps repo catalog — research it, pin an exact version, generate the wrapper Chart.yaml and a minimal values.yaml under charts/<app>/, verify with helm lint, and open a PR. Does not deploy anything.
-argument-hint: "<app-name> [chart-version] [--repo <helm-repo-url>]"
+argument-hint: "<app-name> [chart-version] [--repo <helm-repo-url>] [--context <name>]"
 ---
 
 Add a chart to `charts/<app>/` in the current GitOps repo.
@@ -18,6 +18,7 @@ opening the PR, end with a summary.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - CWD is a GitOps repo (`charts/` and `.claude/CLAUDE.md` exist).
 - Working tree is clean (or ask before proceeding).
 - If `charts/<app>/` already exists, stop — tell the user to pick a different

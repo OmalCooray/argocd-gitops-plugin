@@ -33,13 +33,13 @@ trigger sync ──▶ bounded watch ──▶ Healthy? ──yes──▶ funct
 If the app has `syncPolicy.automated`, a `hard` refresh is usually enough:
 
 ```bash
-kubectl -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context "$CTX" -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 ```
 
 To force a sync explicitly without the `argocd` CLI, patch the operation:
 
 ```bash
-kubectl -n <argocd-ns> patch application <app> --type merge -p \
+kubectl --context "$CTX" -n <argocd-ns> patch application <app> --type merge -p \
   '{"operation":{"initiatedBy":{"username":"argocd-rollout"},"sync":{"revision":"HEAD","syncStrategy":{"apply":{"force":true}}}}}'
 ```
 
@@ -54,9 +54,9 @@ apart (~3–4 min). Each check prints one line:
 
 Read from:
 ```bash
-kubectl -n <argocd-ns> get application <app> \
+kubectl --context "$CTX" -n <argocd-ns> get application <app> \
   -o jsonpath='{.status.sync.status}/{.status.health.status} | {.status.operationState.phase} | {.status.operationState.message}'
-kubectl -n <dest-ns> get pods
+kubectl --context "$CTX" -n <dest-ns> get pods
 ```
 
 Stop the watch as soon as one of these is true:
@@ -79,8 +79,8 @@ Stop the watch as soon as one of these is true:
   never be healthy until the fix lands): after merging, clear the stuck op, then
   re-trigger:
   ```bash
-  kubectl -n <argocd-ns> patch application <app> --type merge -p '{"operation":null}'
-  kubectl -n <argocd-ns> patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
+  kubectl --context "$CTX" -n <argocd-ns> patch application <app> --type merge -p '{"operation":null}'
+  kubectl --context "$CTX" -n <argocd-ns> patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
   ```
 - Go back to step 1. Cap the fix cycles (e.g. 4). If it's still not converging,
   stop and report every root cause found so far + what you tried — do not thrash.

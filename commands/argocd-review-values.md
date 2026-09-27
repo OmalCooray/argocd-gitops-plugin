@@ -1,7 +1,7 @@
 ---
 name: argocd-review-values
 description: Review a catalog app's values against the dev-ready or prod-ready rubric and report findings; optionally write a hardened per-environment overlay and open a PR. Read-only against the cluster.
-argument-hint: "<app-name> [environment-name] [--profile dev|prod] [--write]"
+argument-hint: "<app-name> [environment-name] [--profile dev|prod] [--write] [--context <name>]"
 ---
 
 Review the effective Helm values for `<app>` and report how close they are to the
@@ -22,6 +22,7 @@ opening the PR (only with `--write`), end with the findings table and verdict.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - CWD is a GitOps repo (`charts/<app>/Chart.yaml` exists).
 - `helm` available. No cluster required.
 

@@ -1,7 +1,7 @@
 ---
 name: argocd-sync
 description: Drive an Argo CD app all the way to Synced + Healthy + actually-functioning — trigger the sync, watch it in bounded steps, and on any stall diagnose → fix in git (PR) → re-sync until it converges or reports a clear blocker. Ends with a functional check, not just pod status.
-argument-hint: "<app-name> [environment-name]"
+argument-hint: "<app-name> [environment-name] [--context <name>]"
 ---
 
 Take one Argo CD application from "declared in git" to "the app works". A deploy
@@ -20,6 +20,7 @@ a fix PR or clearing a sync, no open-ended polling.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - The app's git revision is already on the tracked branch (its deploy PR is
   merged). If not, tell the user to merge it first (or run `/argocd-deploy`).
 - A reachable cluster (`kubectl`); `argocd` CLI optional.
@@ -29,7 +30,7 @@ a fix PR or clearing a sync, no open-ended polling.
 1. Load skills `argocd-rollout` and `argocd-troubleshooting`. Follow the rollout
    loop exactly.
 2. Read the app's destination namespace and sources from
-   `kubectl -n <argocd-ns> get application <app> -o json` (or the manifest in
+   `kubectl -n $ARGOCD_NS get application <app> -o json` (or the manifest in
    `environments/<env>/apps/<app>.yaml`).
 3. Run the loop: trigger sync → bounded watch (stated ceiling) → on stall,
    troubleshoot → fix as a git change → PR (checkpoint) → merge (checkpoint) →

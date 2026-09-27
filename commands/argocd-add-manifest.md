@@ -1,7 +1,7 @@
 ---
 name: argocd-add-manifest
 description: Add your own templated manifest (ServiceMonitor, PodMonitor, or any kind via free text) to a wrapper chart's templates/ directory, gated on a values flag, verified to render and to be accepted by its CRD, then open a PR. Opt-in only — nothing else adds templates.
-argument-hint: "<app> <kind>   (kind: servicemonitor | podmonitor | free text)"
+argument-hint: "<app> <kind>   (kind: servicemonitor | podmonitor | free text) [--context <name>]"
 ---
 
 Add a custom manifest to `charts/<app>/templates/` alongside the pinned upstream
@@ -21,6 +21,7 @@ the PR, end with a summary.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - CWD is a GitOps repo (`charts/`, `environments/`, `.claude/CLAUDE.md`).
 - `helm` available.
 
@@ -59,7 +60,7 @@ the PR, end with a summary.
 7. Verify:
    ```bash
    helm template <app> charts/<app>            # your manifest renders
-   helm template <app> charts/<app> | kubectl apply --dry-run=server -f -   # CRD accepts it (if a cluster is reachable)
+   helm template <app> charts/<app> | kubectl --context "$CTX" apply --dry-run=server -f -   # CRD accepts it (if a cluster is reachable)
    ```
 8. Bump `charts/<app>/Chart.yaml` `version`.
 9. Checkpoint → commit → push → `gh pr create` (title `Add <kind> to <app>`,

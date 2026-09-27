@@ -14,7 +14,7 @@ find why.
 ```bash
 argocd app get <app> -o json            # if the CLI is logged in
 # or:
-kubectl -n <argocd-ns> get application <app> -o json
+kubectl --context "$CTX" -n <argocd-ns> get application <app> -o json
 ```
 
 Read, in this order:
@@ -36,19 +36,19 @@ it. Over ~5 min on the same message, or pods in `CrashLoopBackOff` /
 For the worst resource from `status.resources[]`:
 
 ```bash
-kubectl -n <dest-ns> get <kind> <name> -o wide
-kubectl -n <dest-ns> describe <kind> <name>        # read the Events at the bottom
-kubectl -n <dest-ns> get events --sort-by=.lastTimestamp | tail -20
+kubectl --context "$CTX" -n <dest-ns> get <kind> <name> -o wide
+kubectl --context "$CTX" -n <dest-ns> describe <kind> <name>        # read the Events at the bottom
+kubectl --context "$CTX" -n <dest-ns> get events --sort-by=.lastTimestamp | tail -20
 ```
 
 For a Deployment/StatefulSet, go to its pods:
 
 ```bash
-kubectl -n <dest-ns> get pods -l <selector>
-kubectl -n <dest-ns> describe pod <pod>            # Events + per-container State/Reason
-kubectl -n <dest-ns> logs <pod> --all-containers --tail=50
-kubectl -n <dest-ns> logs <pod> -c <initContainer> --tail=50   # init containers matter
-kubectl -n <dest-ns> logs <pod> --previous --tail=50           # last crash
+kubectl --context "$CTX" -n <dest-ns> get pods -l <selector>
+kubectl --context "$CTX" -n <dest-ns> describe pod <pod>            # Events + per-container State/Reason
+kubectl --context "$CTX" -n <dest-ns> logs <pod> --all-containers --tail=50
+kubectl --context "$CTX" -n <dest-ns> logs <pod> -c <initContainer> --tail=50   # init containers matter
+kubectl --context "$CTX" -n <dest-ns> logs <pod> --previous --tail=50           # last crash
 ```
 
 ## Step 3 — match the signature
@@ -79,10 +79,10 @@ reverts it and the drift hides the real problem.
 
 ```bash
 # usually enough for an app with syncPolicy.automated:
-kubectl -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context "$CTX" -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 
 # force an explicit sync by writing the operation:
-kubectl -n <argocd-ns> patch application <app> --type merge -p \
+kubectl --context "$CTX" -n <argocd-ns> patch application <app> --type merge -p \
   '{"operation":{"initiatedBy":{"username":"troubleshooting"},"sync":{"revision":"HEAD","syncStrategy":{"apply":{"force":true}}}}}'
 ```
 
@@ -97,9 +97,9 @@ needs to fix.
 **Recipe** (after the fix is merged to the tracked branch):
 
 ```bash
-kubectl -n <argocd-ns> patch application <app> --type merge -p '{"operation":null}'
-kubectl -n <argocd-ns> patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
-kubectl -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context "$CTX" -n <argocd-ns> patch application <app> --type merge -p '{"operation":null}'
+kubectl --context "$CTX" -n <argocd-ns> patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
+kubectl --context "$CTX" -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 # if automated sync doesn't re-trigger within ~30s, force it with the patch above
 ```
 
