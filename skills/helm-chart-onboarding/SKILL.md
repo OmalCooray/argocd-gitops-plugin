@@ -34,8 +34,16 @@ ArtifactHub API (`reference/artifacthub-api.md`), which lists `available_version
 
 ## Step 2 — choose a version
 
-- List versions: `helm search repo <repo>/<chart> --versions` (after
-  `helm repo add`), or the ArtifactHub API.
+- List versions with a private Helm config, so the user's global repo list is
+  untouched (or use the ArtifactHub API):
+  ```bash
+  export HELM_REPOSITORY_CONFIG="$(mktemp)" HELM_REPOSITORY_CACHE="$(mktemp -d)"
+  helm repo add tmp <repo-url>
+  helm search repo tmp/<chart> --versions -o json
+  unset HELM_REPOSITORY_CONFIG HELM_REPOSITORY_CACHE   # when done
+  ```
+  `helm dependency build` also reads the repo config: set the same two variables for
+  that command, or accept that it updates the user's repo list.
 - Default to the **latest stable** (non-`-rc`, non-`-beta`) unless the user names
   one, or unless the latest requires a Kubernetes version newer than the target
   cluster (`helm show chart ... | grep kubeVersion`).

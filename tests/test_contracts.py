@@ -466,3 +466,30 @@ def test_kubelet_insecure_tls_is_local_cluster_only():
     for needle in ("kind-", "docker-desktop", "minikube", "k3d-", "rancher-desktop", "never",
                    "serverTLSBootstrap", "<dependency-name>.args", "--kubelet-insecure-tls", "when present"):
         assert needle in row, needle
+
+
+def test_onboarder_is_cold_runnable_and_self_consistent():
+    a = read("agents/argocd-onboarder.md")
+    assert "Never deploy to a live cluster" not in a
+    for needle in ("no direct", "Non-interactive", "default `<app>`", "kube-system",
+                   ".claude/CLAUDE.md", "git status --porcelain", "already exists", "no remote",
+                   "Hand-off", "NOT done"):
+        assert needle in a, needle
+    # ordering: preconditions before the sequence; hand-off section last
+    assert a.index("Preconditions") < a.index("## Sequence")
+    assert a.rstrip().rfind("## Hand-off") > a.index("## Failure handling")
+    assert a.rstrip().split("\n## ")[-1].startswith("Hand-off")
+    # consistent fix cap
+    assert "at most 3 attempts" in a
+    assert "4 fix cycles" not in a and "until they do" not in a
+    # --yes lifts only the merge stop
+    sent = [s for s in re.split(r"(?<=\.)\s+", a.replace("\n", " ")) if "--yes" in s]
+    assert sent and any("never" in s and "push/PR" in s and "prod" in s for s in sent)
+
+
+def test_helm_onboarding_skill_does_not_touch_global_repo_list():
+    s = read("skills/helm-chart-onboarding/SKILL.md")
+    assert "(after `helm repo add`)" not in s and "after\n  `helm repo add`" not in s
+    for block in re.findall(r"```.*?```", s, re.S):
+        if "helm repo add" in block:
+            assert "HELM_REPOSITORY_CONFIG" in block
