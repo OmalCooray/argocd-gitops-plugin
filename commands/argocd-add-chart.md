@@ -30,8 +30,14 @@ opening the PR, end with a summary.
 2. Create a branch: `git switch -c add-chart/<app>`.
 3. Follow `helm-chart-onboarding` steps 1–4 to determine `CHART_NAME`,
    `CHART_VERSION` (exact), `CHART_REPO_URL`.
-4. Render `${CLAUDE_PLUGIN_ROOT}/templates/Chart.yaml.tmpl` →
-   `charts/<app>/Chart.yaml` and `values.yaml.tmpl` → `charts/<app>/values.yaml`.
+4. Render with the renderer script (errors on a missing or unused variable):
+   ```bash
+   R="python ${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py"
+   $R ${CLAUDE_PLUGIN_ROOT}/templates/Chart.yaml.tmpl charts/<app>/Chart.yaml \
+     APP_NAME=<app> CHART_NAME=<chart> CHART_VERSION=<version> CHART_REPO_URL=<repo-url>
+   $R ${CLAUDE_PLUGIN_ROOT}/templates/values.yaml.tmpl charts/<app>/values.yaml \
+     CHART_NAME=<chart> CHART_VERSION=<version> CHART_REPO_URL=<repo-url>
+   ```
 5. Verify (must pass — do not skip):
    ```bash
    helm dependency build charts/<app>

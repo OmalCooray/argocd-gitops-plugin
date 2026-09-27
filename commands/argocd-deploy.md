@@ -44,10 +44,15 @@ summary.
      promote future changes.
    - Otherwise ask.
 4. Ask for the destination namespace (default: `<app>`).
-5. Render `${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl` →
-   `environments/<env>/apps/<app>.yaml` with `APP_NAME`, `ARGOCD_NAMESPACE`,
-   `GITOPS_REPO_URL`, `TARGET_REVISION` (the value computed in step 3), `ENV_NAME`,
-   `NAMESPACE`, `DEST_SERVER`.
+5. Render with the renderer script (errors on a missing or unused variable). Read
+   `GITOPS_REPO_URL`, `ARGOCD_NAMESPACE` and `DEST_SERVER` from `.claude/CLAUDE.md`;
+   `TARGET_REVISION` is the value computed in step 3:
+   ```bash
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py \
+     ${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl environments/<env>/apps/<app>.yaml \
+     APP_NAME=<app> ENV_NAME=<env> NAMESPACE=<namespace> ARGOCD_NAMESPACE=<ns> \
+     GITOPS_REPO_URL=<url> TARGET_REVISION=<rev> DEST_SERVER=<server>
+   ```
 6. Create `environments/<env>/values/<app>.yaml` if absent, with content:
    ```yaml
    # Per-environment overrides for <app> in <env>. Nest under the chart name.

@@ -38,16 +38,29 @@ directory, from nothing to an open PR.
 2. Resolve chart: name, exact version, Helm repo URL (ArtifactHub via WebFetch if
    needed). Prefer official repos.
 3. `git switch -c onboard/<app>-<env>`.
-4. Scaffold catalog: render `${CLAUDE_PLUGIN_ROOT}/templates/Chart.yaml.tmpl` + `${CLAUDE_PLUGIN_ROOT}/templates/values.yaml.tmpl` into
-   `charts/<app>/`. Pull upstream values, add only the minimal overrides needed
+4. Scaffold catalog with the renderer script (errors on a missing or unused variable):
+   ```bash
+   R="python ${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py"
+   $R ${CLAUDE_PLUGIN_ROOT}/templates/Chart.yaml.tmpl charts/<app>/Chart.yaml \
+     APP_NAME=<app> CHART_NAME=<chart> CHART_VERSION=<version> CHART_REPO_URL=<repo-url>
+   $R ${CLAUDE_PLUGIN_ROOT}/templates/values.yaml.tmpl charts/<app>/values.yaml \
+     CHART_NAME=<chart> CHART_VERSION=<version> CHART_REPO_URL=<repo-url>
+   ```
+   Pull upstream values, add only the minimal overrides needed
    for a first healthy deploy (resources, persistence, ingress off unless asked).
 5. Verify catalog: `helm dependency build charts/<app>` → `helm lint charts/<app>`
    → (if cluster reachable) `helm template charts/<app> | kubectl --context "$CTX" apply
    --dry-run=client -f -`. All must pass; fix and re-run until they do.
-6. Deploy wiring: render `${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl` into
-   `environments/<env>/apps/<app>.yaml`; create
-   `environments/<env>/values/<app>.yaml` (comment-only). Use the dev/prod
-   `targetRevision` rule from `argocd-repo-conventions`.
+6. Deploy wiring: read `GITOPS_REPO_URL`, `ARGOCD_NAMESPACE`, `DEST_SERVER` from
+   `.claude/CLAUDE.md`, then render (use the dev/prod `targetRevision` rule from
+   `argocd-repo-conventions` for `TARGET_REVISION`):
+   ```bash
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py \
+     ${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl environments/<env>/apps/<app>.yaml \
+     APP_NAME=<app> ENV_NAME=<env> NAMESPACE=<namespace> ARGOCD_NAMESPACE=<ns> \
+     GITOPS_REPO_URL=<url> TARGET_REVISION=<rev> DEST_SERVER=<server>
+   ```
+   Create `environments/<env>/values/<app>.yaml` (comment-only).
 7. Verify manifest: `kubectl --context "$CTX" apply --dry-run=client -f environments/<env>/apps/<app>.yaml`
    (or YAML parse fallback).
 8. Update `.claude/CLAUDE.md`: catalog inventory row + deployment matrix cell.

@@ -18,7 +18,8 @@ Argo CD GitOps configuration, managed with the
 ## First-time setup
 
 ```bash
-./bootstrap/install.sh {{ ENV_NAME }}
+kubectl config get-contexts                 # pick the cluster to install Argo CD into
+./bootstrap/install.sh <kube-context>       # e.g. ./bootstrap/install.sh docker-desktop
 ```
 
 ## Day-to-day (via the plugin)

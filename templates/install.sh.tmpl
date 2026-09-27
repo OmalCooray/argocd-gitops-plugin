@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Bootstrap Argo CD onto the current kube-context, then hand control to Git.
+# Bootstrap Argo CD onto the given kube-context, then hand control to Git.
 #
-# Usage:  ./bootstrap/install.sh [kube-context]
+# Usage:  ./bootstrap/install.sh <kube-context>   (list them: kubectl config get-contexts)
 #
 # Idempotent: safe to re-run. After the first run, Argo CD manages everything
 # else (including itself if you add an app for it) from {{ GITOPS_REPO_URL }}.
@@ -10,7 +10,7 @@ set -euo pipefail
 ARGOCD_NAMESPACE="{{ ARGOCD_NAMESPACE }}"
 ARGOCD_CHART_VERSION="{{ ARGOCD_CHART_VERSION }}"
 ENV_NAME="{{ ENV_NAME }}"
-CONTEXT="${1:-$(kubectl config current-context)}"
+CONTEXT="${1:?usage: install.sh <kube-context>   (list them: kubectl config get-contexts)}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo ">> Using kube-context: ${CONTEXT}"
@@ -33,4 +33,10 @@ echo ">> Applying the root application for environment '${ENV_NAME}'"
 kubectl --context "${CONTEXT}" apply -n "${ARGOCD_NAMESPACE}" \
   -f "${REPO_ROOT}/environments/${ENV_NAME}/root.yaml"
 
-echo ">> Done. Watch sync status with:  argocd app list   (or the Argo CD UI)"
+cat <<EOF
+>> Done. Argo CD is installed in ${CONTEXT} (namespace ${ARGOCD_NAMESPACE}).
+   Open the UI:        kubectl --context ${CONTEXT} -n ${ARGOCD_NAMESPACE} port-forward svc/argo-cd-argocd-server 8080:443   # https://localhost:8080
+   Admin password:     kubectl --context ${CONTEXT} -n ${ARGOCD_NAMESPACE} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+   Watch sync status:  kubectl --context ${CONTEXT} -n ${ARGOCD_NAMESPACE} get applications
+   (The 'resources-finalizer' warning above is Argo CD's documented finalizer name; it is harmless.)
+EOF

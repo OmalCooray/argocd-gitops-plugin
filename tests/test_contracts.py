@@ -264,3 +264,22 @@ def test_add_manifest_has_guardrail_and_crd_path():
     # gate default follows the CRD check
     step5 = m.split("\n5. Add the gating values stanza", 1)[1].split("\n6. CRD check", 1)[0]
     assert "finalized in step 6" in step5
+
+
+def test_init_repo_no_author_defaults_and_asks_visibility():
+    t = read("commands/argocd-init-repo.md")
+    assert "OmalCooray" not in t
+    assert "gh api user" in t and "init.defaultBranch" in t and "Visibility" in t
+    assert "render_template.py" in t
+    assert "--private" not in t.replace("--$VISIBILITY", "")
+
+
+def test_install_script_requires_an_explicit_context_and_prints_access_hints():
+    s = read("templates/install.sh.tmpl")
+    assert '${1:?' in s and "port-forward" in s and "initial-admin-secret" in s
+    assert "install.sh <kube-context>" in read("templates/gitops-README.md.tmpl")
+
+
+def test_commands_render_via_the_script_not_prose():
+    for rel in ("commands/argocd-add-chart.md", "commands/argocd-deploy.md", "agents/argocd-onboarder.md"):
+        assert "render_template.py" in read(rel), rel
