@@ -79,13 +79,21 @@ an app that emits nothing (Metabase, a bare MySQL) is a separate workflow
 
 ## Steps
 
-1. `mkdir -p charts/<app>/grafana-dashboards && python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>" > charts/<app>/grafana-dashboards/<slug>.json`
+1. `mkdir -p charts/<app>/grafana-dashboards && python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>" --out charts/<app>/grafana-dashboards/<slug>.json`
+   (do **not** use shell `>` redirection: a failed fetch would leave a zero-byte
+   file that still lints and renders; `--out` writes atomically, LF endings)
    — `<source>` = a grafana.com id (`12345` / `12345:8`), an `https://` URL, or a
    local `.json` path.
 2. **Sanity-check the metric names.** Grep the JSON for `expr` / metric names and
    compare a sample against live Prometheus:
    `curl -s 'http://<prometheus>/api/v1/label/__name__/values' | ...`. If most
    are absent, it is the wrong dashboard for this exporter — pick another.
+   Then check **labels**: `fetch_dashboard.py "<source>" --labels` prints the label
+   names the queries use; compare with Prometheus's `/api/v1/labels`. Dashboards
+   often use old scrape labels (`kubernetes_namespace`, `kubernetes_pod_name`)
+   where Prometheus has `namespace` / `pod`; re-run step 1 with
+   `--relabel kubernetes_namespace=namespace --relabel kubernetes_pod_name=pod`
+   (repeatable; whole-identifier rewrite of `expr`/`query`/`definition` only).
 3. Create `charts/<app>/templates/grafana-dashboards.yaml` (the template above)
    if it does not exist; add the `grafanaDashboards` stanza to
    `charts/<app>/values.yaml`:
@@ -104,7 +112,12 @@ an app that emits nothing (Metabase, a bare MySQL) is a separate workflow
 `fetch_dashboard.py` does it — see `reference/datasource-normalization.md` for
 the transform and why. Summary: strip `__inputs`/`__requires`/`id`/`uid`, add a
 `datasource` template variable (type `datasource`, query `prometheus`), rewrite
-every Prometheus datasource reference to `${datasource}`. Portable across
+every Prometheus datasource reference to `${datasource}`. A **bare-string**
+datasource uid/name on a `type: query` template variable (e.g. `"beok7uikyo1kwf"`,
+which does not exist on another Grafana and yields "Data source not found") is
+also rewritten to `${datasource}`; built-ins (`-- Mixed --`, `-- Grafana --`,
+`-- Dashboard --`) and non-Prometheus `__inputs` names are left alone. The
+`__source` field records a local file by basename only. Portable across
 environments regardless of the Prometheus datasource UID.
 
 ## Verify after sync

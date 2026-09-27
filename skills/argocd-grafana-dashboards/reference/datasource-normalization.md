@@ -44,7 +44,15 @@ not resolve against an arbitrary Grafana. `fetch_dashboard.py` rewrites them.
    | `{"type": "prometheus"}` / `{}` (no type) | `{"type": "prometheus", "uid": "${datasource}"}` |
    | `null` | `null` (unchanged — panel inherits) |
    | `{"type": "loki", ...}` / `"-- Mixed --"` | unchanged |
-4. Add `"__source": "<origin>, fetched <date>"`.
+4. On `templating.list[*]` entries with `type: query`, a **bare-string**
+   `datasource` (a uid or name that is not `${...}`, not a built-in such as
+   `-- Mixed --`, and not a non-prometheus `__inputs` name) becomes
+   `"${datasource}"`; that uid would not exist on another Grafana.
+5. Add `"__source": "<origin>, fetched <date>"` (local file: basename only).
+
+CLI extras: `--out PATH` (atomic write, LF), `--labels` (list label names used by
+the queries), `--relabel OLD=NEW` (repeatable label rename in `expr`/`query`/
+`definition`).
 
 A dashboard with **no** prometheus reference anywhere → the script exits non-zero
 (it is not a fit for this plugin).

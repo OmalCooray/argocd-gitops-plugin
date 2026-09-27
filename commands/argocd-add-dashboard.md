@@ -39,14 +39,21 @@ the PR, end with a summary.
 4. Fetch + normalize:
    ```bash
    python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>" \
-     > charts/<app>/grafana-dashboards/<slug>.json
+     --out charts/<app>/grafana-dashboards/<slug>.json
    ```
-   If the script exits non-zero (fetch failed, or not a Prometheus dashboard),
-   report the stderr and stop.
-5. **Sanity-check.** Grep the JSON for the metric names it queries; sample a few
-   against `/api/v1/label/__name__/values`. If most are absent, warn that it is
-   likely the wrong dashboard for this exporter and let the user confirm or pick
-   another `<source>`.
+   (Create `charts/<app>/grafana-dashboards/` first if needed. The script writes
+   atomically: a failed fetch leaves **no** file.) If the script exits non-zero
+   (fetch failed, or not a Prometheus dashboard), report the stderr and stop.
+5. **Sanity-check metrics and labels.**
+   a. Metric names: grep the JSON for the metrics it queries; sample a few against
+      `/api/v1/label/__name__/values`. If most are absent, warn it is likely the wrong dashboard.
+   b. Labels: `python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>" --labels`
+      prints the label names the dashboard's queries use. Fetch the real ones by
+      querying Prometheus's `/api/v1/labels` (and confirm on one series with
+      `/api/v1/series?match[]=up{job=~".*<app>.*"}`).
+      For every dashboard label that Prometheus does not have, warn and offer to rewrite. Common scrape-label renames:
+      `kubernetes_namespace→namespace`, `kubernetes_pod_name→pod`, `kubernetes_name→service`, `kubernetes_node→node`.
+      Re-run step 4 adding `--relabel OLD=NEW` for each accepted rename. With no cluster, say the label check was skipped.
 6. If `charts/<app>/templates/grafana-dashboards.yaml` is absent, create it (the
    template in the `argocd-grafana-dashboards` skill). Add the `grafanaDashboards`
    stanza to `charts/<app>/values.yaml` (`enabled: true`, optional `folder`).
@@ -69,6 +76,10 @@ the PR, end with a summary.
       `folderAnnotation: grafana_folder` — a one-time change to
       `charts/kube-prometheus-stack/` (see `argocd-grafana-dashboards` →
       `reference/datasource-normalization.md`). Grafana pod restart needed after.
+    - Also set `grafana.sidecar.dashboards.searchNamespace: ALL` in
+      `charts/kube-prometheus-stack/`, otherwise the sidecar only watches its own
+      namespace and never sees the ConfigMap (see the kube-prometheus-stack
+      notes in the plugin's chart notes).
 
 ## Notes
 
