@@ -566,3 +566,27 @@ def test_list_crds_script_is_the_single_crd_detector():
     n = read("skills/values-review/reference/chart-notes.md")
     for k in ("probeSelectorNilUsesHelmValues", "scrapeConfigSelectorNilUsesHelmValues", "retention"):
         assert k in n, k
+
+
+def test_review_values_handles_own_charts_release_names_and_noop_write():
+    r = read("commands/argocd-review-values.md")
+    for needle in ("own-app chart", "helm template <app>", "-n <dest-ns>", "mktemp -d", "nothing to harden"):
+        assert needle in r, needle
+    s = read("skills/values-review/SKILL.md")
+    assert "replicaCount > 1" in s
+    # temp-copy block, no in-tree build
+    assert 'rm -rf "$tmp"' in r
+    assert "helm dependency build charts/<app>" not in r
+    # ordering
+    assert r.index("own-app chart") < r.index("helm show values")
+    assert r.index("nothing to harden") < r.index("git commit")
+    # --write flow
+    for needle in ("git status --porcelain", "review/<app>-<env>-<profile>", "needs a chart change", "git diff --quiet"):
+        assert needle in r, needle
+    # PR body spec
+    assert "verified by" in r
+    # skill PDB note sits with the HA rubric
+    sentence = next(x for x in re.split(r"(?<=\.)\s+", re.sub(r"\s+", " ", s)) if "replicaCount > 1" in x)
+    assert "PodDisruptionBudget" in sentence and "together" in sentence
+    ha = s.index("**Availability**")
+    assert abs(s.index("replicaCount > 1") - ha) < 900

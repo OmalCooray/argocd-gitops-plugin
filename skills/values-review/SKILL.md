@@ -31,7 +31,8 @@ profiles and produce a findings list. Optionally emit a hardened overlay.
    (works but risky), **note** (nice to have).
 5. If asked, write the hardened settings into
    `environments/<env>/values/<app>.yaml` (never the base `values.yaml` for
-   env-specific values), nested under the subchart name. Show a diff, don't apply
+   env-specific values), nested under the subchart name for a wrapper chart, or
+   top-level for an own-app chart (no `dependencies`). Show a diff, don't apply
    to a cluster.
 
 ## Profiles
@@ -59,7 +60,8 @@ resources. Do **not** flag missing HA here.
 - **Availability**: stateless components ≥ 2 replicas **and** a
   `PodDisruptionBudget` (`minAvailable: 1` or `maxUnavailable: 1`). Missing PDB
   with >1 replica = **warn**; 1 replica for a component that supports more =
-  **blocker**.
+  **blocker**. A `PodDisruptionBudget` template usually renders only when
+  `replicaCount > 1`; recommend the replica and PDB changes **together**.
 - **Anti-affinity**: `podAntiAffinity` (at least `preferredDuringScheduling`) on
   multi-replica components so replicas don't share a node. Missing = **warn**.
 - **Datastore**: do **not** use the chart's bundled DB subchart in prod — point
