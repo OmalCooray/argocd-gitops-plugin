@@ -10,14 +10,12 @@
 
 ## Design
 
-**Structure.** Replace the v0.5→v1.0 sequence with three unordered buckets:
-- **Now** — what's actively being built.
-- **Next** — high-confidence candidates.
-- **Later** — worth keeping, not prioritized.
+**Structure.** Replace the v0.5→v1.0 sequence with one bucket for now:
+- **Now** — what's actively being built (may be empty; that's stated explicitly, not left blank with no explanation).
+
+No pre-filled "Next" or "Later" candidates. The old feature ideas (secrets, multi-env, rollback, evals, docs/quickstart) are not carried forward as a backlog — they're dropped entirely rather than parked. Direction from here comes only from what people actually ask for via GitHub Issues; the roadmap starts from real signal, not from the author's pre-existing guesses about what matters. `Next`/`Later` buckets can be reintroduced once there's real feedback to sort into them.
 
 No bucket item carries a version number. A version is decided only when something actually ships (as `CHANGELOG.md` already does).
-
-**Entries.** Each item is a one- or two-line pitch — the problem it solves, why it might matter — with no baked-in implementation choice. The mechanism is decided in brainstorming at pickup time, informed by whoever asked.
 
 **Dropped:** the CTO-assessment framing and item numbers, S/M/L sizing, the baseline-commit line, per-milestone "gate" checklists, the sequencing table, and the v1.0 Definition-of-Done checklist. No fixed 1.0 feature set is promised.
 
@@ -28,19 +26,11 @@ No bucket item carries a version number. A version is decided only when somethin
 
 ## Content mapping (old → new)
 
-| Old milestone | New bucket | Compressed pitch |
+| Old milestone | New bucket | Note |
 |---|---|---|
 | v0.5 (done, shipped) | — | Dropped — already shipped, lives in CHANGELOG.md |
-| v0.6 Secrets (ESO) | Next | "Secrets management: a GitOps repo the plugin produces still needs a hand-created Secret today." |
-| v0.7 Multi-env / promotion | Next | "Multi-environment promotion: today's scaffold is single-env; dev→prod promotion is the point of GitOps." |
-| v0.8.1 Rollback | Next | "Rollback: a proven way to get a broken app back to its last-good state." |
-| v0.8.2 Agent hardening | Later | "`argocd-onboarder` proven fully unattended end-to-end on a live cluster." |
-| v0.8.3 Skill-triggering evals | Later | "A reproducible baseline for whether Claude picks the right skill for a given request." |
-| v0.8.4 External couplings | Later | "Document/pin the plugin's external dependencies (grafana.com API, chart repos)." |
-| v0.9.1 Example repo | Later | "A clean, CI-verified example repo for newcomers (not the maintainer's own messy dogfood repo)." |
-| v0.9.2 Quickstart | Later | "A 10-minute quickstart doc, copy-pasteable, verified by CI." |
 | v0.9.3 Marketplace/install | — | Dropped — shipped in v0.6.0 |
-| v0.9.4 Full regression dogfood | Later | "A from-scratch, no-undocumented-step run of the whole plugin on a fresh repo and cluster." |
+| v0.6 Secrets, v0.7 Multi-env, v0.8.1 Rollback, v0.8.2 Agent hardening, v0.8.3 Skill evals, v0.8.4 External couplings, v0.9.1 Example repo, v0.9.2 Quickstart, v0.9.4 Full regression dogfood | — | Dropped entirely, not parked in a bucket — these were the author's pre-existing guesses; they don't reappear until someone actually asks |
 | v1.0 DoD checklist | — | Dropped entirely |
 | Out of scope list | Kept, flat | Unchanged content, no version framing |
 
