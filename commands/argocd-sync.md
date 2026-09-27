@@ -1,6 +1,6 @@
 ---
 name: argocd-sync
-description: Drive an Argo CD app all the way to Synced + Healthy + actually-functioning — trigger the sync, watch it in bounded steps, and on any stall diagnose → fix in git (PR) → re-sync until it converges or reports a clear blocker. Ends with a functional check, not just pod status.
+description: Drive an Argo CD app all the way to Synced + Healthy + actually-functioning — refresh, then sync only if needed, watch it in bounded steps, and on any stall diagnose → fix in git (PR) → re-sync until it converges or reports a clear blocker. Ends with a functional check, not just pod status.
 argument-hint: "<app-name> [environment-name] [--context <name>]"
 ---
 
@@ -34,11 +34,23 @@ a fix PR or clearing a sync, no open-ended polling.
    `spec.sources[]` (or `spec.source`), `status.sync.status`, `status.health.status`,
    `status.sync.revisions[]` (multi-source; `status.sync.revision` is null there) and `status.operationState`.
    If the Application does not exist yet, refresh its parent first: annotate `root-<env>` with
-   `argocd.argoproj.io/refresh=hard`, then re-read (allow one 30 s wait).
-3. **Nothing-to-do exit.** If it is `Synced` + `Healthy`, has no running operation, and
-   every `status.sync.revisions[]` (or `revision`) equals the tracked branch's HEAD
-   (`git ls-remote <repo-url> <targetRevision>`), print
-   `<app>: already Synced/Healthy at <sha> — nothing to do` and jump to step 5 (functional check). Do **not** trigger anything.
+   `argocd.argoproj.io/refresh=hard`, then re-read (allow one 30 s wait). A `refresh=hard`
+   annotation starts no operation (it only re-reads git), so it is exempt from the checkpoint;
+   the checkpoint in step 4 gates operations that change the cluster. If the Application still
+   does not exist 30 s after refreshing `root-<env>`, print
+   `<app> was not created by root-<env>: check that environments/<env>/apps/<app>.yaml is merged and root-<env> is Synced` and stop.
+3. **Nothing-to-do exit.** If it is `Synced` + `Healthy` and has no running operation, compare the
+   synced revision(s) with what git/the chart repo currently has. Single-source app: compare
+   `status.sync.revision`. Multi-source app: `status.sync.revisions[i]` corresponds to `spec.sources[i]`.
+   For a **git** source (this plugin's wrapper-chart apps: the `charts/<app>` source and the `ref: values`
+   source both point at the GitOps git repo) compare the revision to the tracked ref: branch/`HEAD` →
+   `git ls-remote <repoURL> <targetRevision>` (first column); tag → use the peeled line
+   (`refs/tags/<t>^{}`) if present; a 40-hex SHA `targetRevision` → compare directly (no ls-remote).
+   For a **Helm-repo** source compare `revisions[i]` to its `targetRevision` chart version.
+   If `ls-remote` fails (private repo without credentials, no network), say so and treat the comparison
+   as unknown: do NOT take the nothing-to-do exit, continue to step 4.
+   If every source matches, print `<app>: already Synced/Healthy at <sha> — nothing to do` and jump to
+   step 5 (functional check). Do **not** trigger anything.
 4. Checkpoint: `> About to trigger a sync of <app> on "$CTX". Proceed?` Then run the rollout loop:
    trigger (refresh first) → bounded watch (stated ceiling, **12 minutes total wall-clock across all cycles**) →
    on stall, troubleshoot → fix as a git change → PR (checkpoint) → merge (checkpoint) →

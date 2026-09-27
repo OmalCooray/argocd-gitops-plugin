@@ -38,15 +38,27 @@ Default trigger — a hard refresh (harmless; starts no operation on an app that
 kubectl --context "$CTX" -n "$ARGOCD_NS" annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 ```
 
-Automated apps (`syncPolicy.automated`) converge on their own after a refresh. Only when the app is
-`OutOfSync` with automated sync **disabled**, or an earlier sync **Failed**, force one — behind a
-**second checkpoint** (`> About to force-sync <app>: this re-applies every resource. Proceed?`). Omit
-`revision`/`revisions` so Argo CD uses the app's own `targetRevision`s (never `HEAD`: that ignores
-`spec.sources` and a pinned SHA). Omitting `revision`/`revisions` makes Argo CD use each source's `targetRevision`.
+Automated apps (`syncPolicy.automated`) converge on their own after a refresh. Do not call an
+automated app stuck just because it is `OutOfSync` right after the refresh: wait until 3 consecutive
+probes (~60 s) show no operation started (refresh-to-sync latency).
+
+**Escalation ladder** — go here straight after the refresh if the app is `OutOfSync` with **no running
+operation** and `syncPolicy.automated` is absent/disabled, or the last `operationState.phase` is `Failed`;
+for an automated app, go here after the 3-probe wait above. Every rung is behind a **second checkpoint**
+(`> About to sync <app>: this applies the desired state to the cluster. Proceed?`).
+
+1. A plain sync (no force; this is what `argocd app sync` does). Never pin `revision: HEAD` (it ignores `spec.sources` and a pinned SHA).
+   Omitting `revision`/`revisions` makes Argo CD use each source's `targetRevision`.
 
 ```bash
-kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p \
-  '{"operation":{"initiatedBy":{"username":"argocd-rollout"},"sync":{"syncStrategy":{"apply":{"force":true}}}}}'
+kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p '{"operation":{"initiatedBy":{"username":"argocd-rollout"},"sync":{"syncStrategy":{"apply":{}}}}}'
+```
+
+2. Only if the plain sync fails on an immutable-field/selector error, force it, saying in the second
+   checkpoint: `> About to force-sync <app>: this can DELETE and RECREATE resources that have immutable fields. Proceed?`
+
+```bash
+kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p '{"operation":{"initiatedBy":{"username":"argocd-rollout"},"sync":{"syncStrategy":{"apply":{"force":true}}}}}'
 ```
 
 ### 2. Bounded watch
@@ -70,7 +82,7 @@ Stop the watch as soon as one of these is true:
 - **Healthy + Synced** → go to step 4.
 - **Stuck** (per `argocd-troubleshooting`: `CrashLoopBackOff` / `ImagePullBackOff`
   / `CreateContainerConfigError`; same `operationState.message` for the whole
-  window; `operationState.phase: Failed`; `OutOfSync` with no running op) → step 3.
+  window; `operationState.phase: Failed`; `OutOfSync` with no running op → the step 1 escalation ladder first, then step 3 if it still fails) → step 3.
 - **Ceiling reached, still Progressing** on image pulls / init containers with no
   errors → report "still rolling out, nothing wrong" and hand back with the exact
   thing it's waiting on. Do not loop forever.
@@ -89,7 +101,7 @@ Stop the watch as soon as one of these is true:
   kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p '{"operation":null}'
   kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
   ```
-- Go back to step 1. Cap the fix cycles (e.g. 4). If it's still not converging,
+- Go back to step 1. Cap the fix cycles at 4 (hard cap). If it's still not converging,
   stop and report every root cause found so far + what you tried — do not thrash.
 
 ### 4. Functional check — Healthy ≠ working

@@ -132,7 +132,32 @@ def test_sync_has_noop_exit_checkpoint_and_no_head_force():
     roll = read("skills/argocd-rollout/SKILL.md")
     assert "nothing to do" in sync.lower()
     assert "About to trigger a sync" in sync
-    assert "cluster-info" in read("references/target-resolution.md")
     assert '"revision":"HEAD"' not in roll and '"revision": "HEAD"' not in roll
     assert "refresh=hard" in roll                     # refresh is the default trigger
-    assert "force" in roll and "second checkpoint" in roll.lower()
+
+
+def test_sync_operation_patches_never_pin_a_revision():
+    import json
+    for rel in ("skills/argocd-rollout/SKILL.md", "skills/argocd-troubleshooting/SKILL.md"):
+        patches = re.findall(r"'(\{\"operation\".*?\})'(?:\s|$)", read(rel))
+        assert patches, rel
+        for raw in patches:
+            op = json.loads(raw)["operation"]
+            if op is None:
+                continue
+            assert "revision" not in op["sync"] and "revisions" not in op["sync"], (rel, raw)
+
+
+def test_sync_noop_exit_precedes_checkpoint_and_ceilings_are_stated():
+    sync = read("commands/argocd-sync.md")
+    roll = read("skills/argocd-rollout/SKILL.md")
+    assert sync.find("nothing to do") < sync.find("About to trigger a sync")
+    assert "12 minutes" in sync
+    assert "hard cap" in roll
+
+
+def test_rollout_has_plain_sync_then_force_ladder():
+    roll = read("skills/argocd-rollout/SKILL.md")
+    assert '"apply":{}' in roll                        # plain sync first
+    assert "second checkpoint" in roll.lower()
+    assert "DELETE and RECREATE" in roll

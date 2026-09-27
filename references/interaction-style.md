@@ -20,7 +20,7 @@ in control of the big moves. This overrides any default toward "just do it".
      a stated window), printing one status line per probe, and stop as soon as
      it's ready or clearly stuck — never an open-ended loop.
 
-4. **No polling loops for health.** Inspect once, decide progressing-vs-stuck
+4. **No polling loops for health.** (Sanctioned exception: the rollout skill's *bounded* watch — at most 4 probes ≈80 s per tool call, 12 minutes total; the rule prohibits open-ended waits and `sleep` loops.) Inspect once, decide progressing-vs-stuck
    (see `argocd-troubleshooting`), report. If it's still legitimately
    progressing, say what it's waiting on and hand back — don't sit and spin.
 
