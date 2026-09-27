@@ -38,7 +38,7 @@ the PR, end with a summary.
 3. Branch `git switch -c add-dashboard/<app>-<slug>`.
 4. Fetch + normalize:
    ```bash
-   python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>" \
+   python "${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py" "<source>" \
      --out charts/<app>/grafana-dashboards/<slug>.json
    ```
    (Create `charts/<app>/grafana-dashboards/` first if needed. The script writes
@@ -47,7 +47,7 @@ the PR, end with a summary.
 5. **Sanity-check metrics and labels.**
    a. Metric names: grep the JSON for the metrics it queries; sample a few against
       `/api/v1/label/__name__/values`. If most are absent, warn it is likely the wrong dashboard.
-   b. Labels: `python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>" --labels`
+   b. Labels: `python "${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py" "<source>" --labels`
       prints the label names the dashboard uses (matchers, `by`/`on`/... lists,
       `label_values(..., <label>)`, legend `{{ label }}` templates).
       - **No reachable cluster** (`kubectl --context "$CTX" get ns` fails): print
@@ -64,7 +64,9 @@ the PR, end with a summary.
         `kubernetes_namespace->namespace`, `kubernetes_pod_name->pod`, `kubernetes_name->service`, `kubernetes_node->node`.
       - For each accepted rename, re-run step 4 with one `--relabel OLD=NEW` per rename, e.g.
         ```bash
-        python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>"           --relabel kubernetes_namespace=namespace --relabel kubernetes_pod_name=pod           --out charts/<app>/grafana-dashboards/<slug>.json
+        python "${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py" "<source>" \
+          --relabel kubernetes_namespace=namespace --relabel kubernetes_pod_name=pod \
+          --out charts/<app>/grafana-dashboards/<slug>.json
         ```
         Re-running into the same `--out` path safely replaces the file (atomic write).
 6. If `charts/<app>/templates/grafana-dashboards.yaml` is absent, create it (the

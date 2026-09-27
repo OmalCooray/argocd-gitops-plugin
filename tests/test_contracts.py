@@ -277,9 +277,60 @@ def test_init_repo_no_author_defaults_and_asks_visibility():
 def test_install_script_requires_an_explicit_context_and_prints_access_hints():
     s = read("templates/install.sh.tmpl")
     assert '${1:?' in s and "port-forward" in s and "initial-admin-secret" in s
+    heredoc = s.split("cat <<EOF", 1)[1]
+    kube = [ln for ln in heredoc.splitlines() if "kubectl" in ln]
+    assert kube and all("--context" in ln for ln in kube), kube
     assert "install.sh <kube-context>" in read("templates/gitops-README.md.tmpl")
 
 
 def test_commands_render_via_the_script_not_prose():
     for rel in ("commands/argocd-add-chart.md", "commands/argocd-deploy.md", "agents/argocd-onboarder.md"):
         assert "render_template.py" in read(rel), rel
+
+
+def test_no_unquoted_plugin_root_python_calls():
+    import subprocess
+    files = subprocess.run(["git", "ls-files", "commands", "agents", "skills", "references"],
+                           cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+    for rel in files:
+        if rel.endswith(".md"):
+            assert "python ${CLAUDE_PLUGIN_ROOT}" not in read(rel), rel
+    assert "python3" in read("references/interaction-style.md")
+
+
+def test_init_repo_has_creation_checkpoint_and_sets_remote_url():
+    t = read("commands/argocd-init-repo.md")
+    assert "About to create" in t and "git remote set-url origin" in t
+
+
+def _render_calls():
+    calls = []
+    files = sorted((ROOT / "commands").glob("*.md")) + sorted((ROOT / "agents").glob("*.md"))
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        for block in re.findall(r"```[a-z]*\n(.*?)```", text, flags=re.S):
+            joined = re.sub(r"\\\n\s*", " ", block)
+            for line in joined.splitlines():
+                if line.lstrip().startswith("R=") or not ("render_template.py" in line or line.lstrip().startswith("$R ")):
+                    continue
+                tmpl = re.search(r"([A-Za-z0-9._-]+\.tmpl)", line)
+                assert tmpl, (path.name, line)
+                rest = line.split(tmpl.group(1), 1)[1]
+                keys = set(re.findall(r"(?<![A-Za-z0-9_])([A-Z][A-Z0-9_]*)=", rest))
+                calls.append((path.name, tmpl.group(1), keys))
+    return calls
+
+
+def test_render_calls_match_template_placeholders():
+    calls = _render_calls()
+    assert len(calls) >= 8, calls
+    rendered = set()
+    for cmd, tmpl, keys in calls:
+        path = ROOT / "templates" / tmpl
+        assert path.exists(), (cmd, tmpl)
+        expected = set(re.findall(r"\{\{\s*([A-Z0-9_]+)\s*\}\}", path.read_text(encoding="utf-8")))
+        assert keys == expected, (cmd, tmpl, sorted(keys ^ expected))
+        rendered.add(tmpl)
+    never = sorted(p.name for p in (ROOT / "templates").glob("*.tmpl") if p.name not in rendered)
+    # 6b (argocd-bootstrap renders install.sh.tmpl) must flip this to [].
+    assert never == ["install.sh.tmpl"], never

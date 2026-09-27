@@ -11,6 +11,8 @@ in control of the big moves. This overrides any default toward "just do it".
 2. **Show the command, then its meaningful output.** Put commands in a fenced
    block. After running, show the lines that matter (status, names, errors) —
    not a 200-line dump.
+   Scripts in this plugin are run as `python "…"`; if `python` is not on PATH use
+   `python3`. Always quote `${CLAUDE_PLUGIN_ROOT}` (paths may contain spaces).
 
 3. **Run long operations in the foreground.** Never launch a silent background
    job for an install, a sync, or a wait. If something takes minutes:

@@ -27,8 +27,9 @@ summary.
   `/argocd-init-repo` for a fresh repo. Then retry.
 - If `environments/<env>/apps/<app>.yaml` already exists, stop — the app is
   already deployed to that env; edits go through a normal PR, not this command.
-- Read `.claude/CLAUDE.md` for `GITOPS_REPO_URL`, `ARGOCD_NAMESPACE`,
-  `DEST_SERVER`, and the default branch.
+- Read `.claude/CLAUDE.md`: `GITOPS_REPO_URL` = the "GitOps repo URL" line,
+  `ARGOCD_NAMESPACE` = "Argo CD namespace", `DEST_SERVER` = "Destination cluster for
+  <env>", default branch = "Default branch".
 
 ## Steps
 
@@ -45,13 +46,14 @@ summary.
    - Otherwise ask.
 4. Ask for the destination namespace (default: `<app>`).
 5. Render with the renderer script (errors on a missing or unused variable). Read
-   `GITOPS_REPO_URL`, `ARGOCD_NAMESPACE` and `DEST_SERVER` from `.claude/CLAUDE.md`;
-   `TARGET_REVISION` is the value computed in step 3:
+   from `.claude/CLAUDE.md`: `GITOPS_REPO_URL` from the "GitOps repo URL" line,
+   `ARGOCD_NAMESPACE` from "Argo CD namespace", `DEST_SERVER` from "Destination
+   cluster for <env>". `TARGET_REVISION` is the value computed in step 3;
+   `<app-namespace>` is the destination namespace from step 4:
    ```bash
-   python ${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py \
-     ${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl environments/<env>/apps/<app>.yaml \
-     APP_NAME=<app> ENV_NAME=<env> NAMESPACE=<namespace> ARGOCD_NAMESPACE=<ns> \
-     GITOPS_REPO_URL=<url> TARGET_REVISION=<rev> DEST_SERVER=<server>
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl" environments/<env>/apps/<app>.yaml \
+     APP_NAME=<app> ENV_NAME=<env> NAMESPACE=<app-namespace> ARGOCD_NAMESPACE=<argocd-namespace> \
+     GITOPS_REPO_URL=<gitops-repo-url> TARGET_REVISION=<rev> DEST_SERVER=<server>
    ```
 6. Create `environments/<env>/values/<app>.yaml` if absent, with content:
    ```yaml

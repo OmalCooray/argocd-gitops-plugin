@@ -79,7 +79,7 @@ an app that emits nothing (Metabase, a bare MySQL) is a separate workflow
 
 ## Steps
 
-1. `mkdir -p charts/<app>/grafana-dashboards && python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>" --out charts/<app>/grafana-dashboards/<slug>.json`
+1. `mkdir -p charts/<app>/grafana-dashboards && python "${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py" "<source>" --out charts/<app>/grafana-dashboards/<slug>.json`
    (do **not** use shell `>` redirection: a failed fetch would leave a zero-byte
    file that still lints and renders; `--out` writes atomically, LF endings)
    — `<source>` = a grafana.com id (`12345` / `12345:8`), an `https://` URL, or a

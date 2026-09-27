@@ -32,10 +32,9 @@ opening the PR, end with a summary.
    `CHART_VERSION` (exact), `CHART_REPO_URL`.
 4. Render with the renderer script (errors on a missing or unused variable):
    ```bash
-   R="python ${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py"
-   $R ${CLAUDE_PLUGIN_ROOT}/templates/Chart.yaml.tmpl charts/<app>/Chart.yaml \
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/Chart.yaml.tmpl" charts/<app>/Chart.yaml \
      APP_NAME=<app> CHART_NAME=<chart> CHART_VERSION=<version> CHART_REPO_URL=<repo-url>
-   $R ${CLAUDE_PLUGIN_ROOT}/templates/values.yaml.tmpl charts/<app>/values.yaml \
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/values.yaml.tmpl" charts/<app>/values.yaml \
      CHART_NAME=<chart> CHART_VERSION=<version> CHART_REPO_URL=<repo-url>
    ```
 5. Verify (must pass — do not skip):

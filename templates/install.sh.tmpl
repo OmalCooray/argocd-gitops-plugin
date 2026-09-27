@@ -38,5 +38,5 @@ cat <<EOF
    Open the UI:        kubectl --context ${CONTEXT} -n ${ARGOCD_NAMESPACE} port-forward svc/argo-cd-argocd-server 8080:443   # https://localhost:8080
    Admin password:     kubectl --context ${CONTEXT} -n ${ARGOCD_NAMESPACE} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
    Watch sync status:  kubectl --context ${CONTEXT} -n ${ARGOCD_NAMESPACE} get applications
-   (The 'resources-finalizer' warning above is Argo CD's documented finalizer name; it is harmless.)
+   (A 'resources-finalizer' warning from the apply step above, if shown, is Argo CD's documented finalizer name and is harmless.)
 EOF
