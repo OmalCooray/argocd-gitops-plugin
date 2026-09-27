@@ -83,9 +83,9 @@ reverts it and the drift hides the real problem.
 # usually enough for an app with syncPolicy.automated:
 kubectl --context "$CTX" -n "$ARGOCD_NS" annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 
-# force an explicit sync by writing the operation:
+# force an explicit sync (only behind a checkpoint; omitting revision uses each source's targetRevision):
 kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p \
-  '{"operation":{"initiatedBy":{"username":"troubleshooting"},"sync":{"revision":"HEAD","syncStrategy":{"apply":{"force":true}}}}}'
+  '{"operation":{"initiatedBy":{"username":"troubleshooting"},"sync":{"syncStrategy":{"apply":{"force":true}}}}}'
 ```
 
 ### Clearing a deadlocked sync

@@ -23,21 +23,29 @@ a fix PR or clearing a sync, no open-ended polling.
 0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - The app's git revision is already on the tracked branch (its deploy PR is
   merged). If not, tell the user to merge it first (or run `/argocd-deploy`).
-- A reachable cluster (`kubectl`); `argocd` CLI optional.
+- A reachable cluster (`kubectl`); `argocd` CLI optional. If the cluster is unreachable, stop with the one-line message from `target-resolution.md` step 5 — do not continue.
 
 ## Steps
 
 1. Load skills `argocd-rollout` and `argocd-troubleshooting`. Follow the rollout
    loop exactly.
-2. Read the app's destination namespace and sources from
-   `kubectl --context "$CTX" -n "$ARGOCD_NS" get application <app> -o json` (or the manifest in
-   `environments/<env>/apps/<app>.yaml`).
-3. Run the loop: trigger sync → bounded watch (stated ceiling) → on stall,
-   troubleshoot → fix as a git change → PR (checkpoint) → merge (checkpoint) →
+2. Read the app's live state once:
+   `kubectl --context "$CTX" -n "$ARGOCD_NS" get application <app> -o json` — capture destination namespace,
+   `spec.sources[]` (or `spec.source`), `status.sync.status`, `status.health.status`,
+   `status.sync.revisions[]` (multi-source; `status.sync.revision` is null there) and `status.operationState`.
+   If the Application does not exist yet, refresh its parent first: annotate `root-<env>` with
+   `argocd.argoproj.io/refresh=hard`, then re-read (allow one 30 s wait).
+3. **Nothing-to-do exit.** If it is `Synced` + `Healthy`, has no running operation, and
+   every `status.sync.revisions[]` (or `revision`) equals the tracked branch's HEAD
+   (`git ls-remote <repo-url> <targetRevision>`), print
+   `<app>: already Synced/Healthy at <sha> — nothing to do` and jump to step 5 (functional check). Do **not** trigger anything.
+4. Checkpoint: `> About to trigger a sync of <app> on "$CTX". Proceed?` Then run the rollout loop:
+   trigger (refresh first) → bounded watch (stated ceiling, **12 minutes total wall-clock across all cycles**) →
+   on stall, troubleshoot → fix as a git change → PR (checkpoint) → merge (checkpoint) →
    clear any deadlocked op → re-sync. Cap the fix cycles at 4.
-4. When Argo CD reports `Synced/Healthy`, run the **functional check** for the
+5. When Argo CD reports `Synced/Healthy`, run the **functional check** for the
    app type (rollout skill's table) — an actual request / query, not pod status.
-5. Report per the rollout skill's format: converged (with the fix PRs and what
+6. Report per the rollout skill's format: converged (with the fix PRs and what
    the functional check confirmed) or not (with every blocker found and what a
    human needs to decide).
 

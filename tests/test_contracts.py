@@ -125,3 +125,14 @@ def test_no_argocd_ns_placeholder_left():
 
 def test_bootstrap_runs_install_with_the_resolved_context():
     assert 'install.sh "$CTX"' in read("commands/argocd-bootstrap.md")
+
+
+def test_sync_has_noop_exit_checkpoint_and_no_head_force():
+    sync = read("commands/argocd-sync.md")
+    roll = read("skills/argocd-rollout/SKILL.md")
+    assert "nothing to do" in sync.lower()
+    assert "About to trigger a sync" in sync
+    assert "cluster-info" in read("references/target-resolution.md")
+    assert '"revision":"HEAD"' not in roll and '"revision": "HEAD"' not in roll
+    assert "refresh=hard" in roll                     # refresh is the default trigger
+    assert "force" in roll and "second checkpoint" in roll.lower()

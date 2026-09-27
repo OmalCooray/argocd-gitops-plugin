@@ -32,23 +32,28 @@ trigger sync ──▶ bounded watch ──▶ Healthy? ──yes──▶ funct
 
 ### 1. Trigger the sync
 
-If the app has `syncPolicy.automated`, a `hard` refresh is usually enough:
+Default trigger — a hard refresh (harmless; starts no operation on an app that is already in sync):
 
 ```bash
 kubectl --context "$CTX" -n "$ARGOCD_NS" annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 ```
 
-To force a sync explicitly without the `argocd` CLI, patch the operation:
+Automated apps (`syncPolicy.automated`) converge on their own after a refresh. Only when the app is
+`OutOfSync` with automated sync **disabled**, or an earlier sync **Failed**, force one — behind a
+**second checkpoint** (`> About to force-sync <app>: this re-applies every resource. Proceed?`). Omit
+`revision`/`revisions` so Argo CD uses the app's own `targetRevision`s (never `HEAD`: that ignores
+`spec.sources` and a pinned SHA). Omitting `revision`/`revisions` makes Argo CD use each source's `targetRevision`.
 
 ```bash
 kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p \
-  '{"operation":{"initiatedBy":{"username":"argocd-rollout"},"sync":{"revision":"HEAD","syncStrategy":{"apply":{"force":true}}}}}'
+  '{"operation":{"initiatedBy":{"username":"argocd-rollout"},"sync":{"syncStrategy":{"apply":{"force":true}}}}}'
 ```
 
 ### 2. Bounded watch
 
-Check **at a fixed cadence for a stated ceiling** — e.g. up to 10 checks, ~20 s
-apart (~3–4 min). Each check prints one line:
+Check **at a fixed cadence for a stated ceiling**: run at most 4 probes (~80 s,
+~20 s apart) per tool call so no call exceeds the 2-minute tool timeout; repeat
+calls up to the **12-minute wall-clock ceiling across all fix cycles**. Each check prints one line:
 
 ```
 [n] <app>  <sync>/<health>  <op message or "">  pods <ready>/<total>
