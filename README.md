@@ -134,8 +134,8 @@ cd data-platform-k8s-configs
 
 ## Limitations
 
-- **One environment per scaffold.** The generated repo starts with a single environment; multi-environment
-  scaffolding and promotion are planned (see the [roadmap](docs/ROADMAP.md)).
+- **One environment per scaffold.** The generated repo starts with a single environment; no multi-environment
+  scaffolding or promotion command exists yet.
 - **Secrets are not managed.** Create them out-of-band with `kubectl create secret`; the Argo CD deploy-key Secret for
   a private repo is the only one the plugin creates.
 - **No rollback command.** Revert in git and re-sync.
@@ -150,19 +150,11 @@ cd data-platform-k8s-configs
 
 ## Design & roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the full roadmap and design doc.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for what's next — direction comes from
+feature requests, not a pre-set plan; open an issue to propose one.
 [Supported tools & versions](docs/SUPPORT.md) — tool matrix and OS coverage.
 [Contributing](docs/CONTRIBUTING.md) — dev flow, tests, release process.
 [Changelog](CHANGELOG.md) — release history.
-
-Phase 2 shipped: `values-review` / `/argocd-review-values`,
-`argocd-troubleshooting` / `/argocd-doctor`,
-`argocd-rollout` / `/argocd-sync` (drive-to-healthy loop).
-Phase 3: `/argocd-add-env`, `/argocd-promote`, secrets.
-
-Next (planned, not yet built): `argocd-exporters` / `/argocd-observe` (spec #2b)
-— provision an exporter for apps that emit no metrics (Metabase, bare MySQL) and
-tie exporter → ServiceMonitor → dashboard into one command.
 
 ## Development
 

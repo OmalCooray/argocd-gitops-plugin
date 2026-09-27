@@ -52,7 +52,7 @@ bash tests/smoke/argocd_e2e.sh
 
 ## Releasing
 
-1. Land all milestone PRs.
+1. Land the PRs for this release.
 2. Update `CHANGELOG.md`: move `[Unreleased]` items into a dated `[X.Y.Z]` section.
 3. Bump `.claude-plugin/plugin.json` `version` (the marketplace entry carries no version).
 4. `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`.
