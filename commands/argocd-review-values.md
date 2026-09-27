@@ -99,9 +99,8 @@ opening the PR (only with `--write`), end with the findings table and verdict.
         appear in the render (cite one grep, e.g. `grep -n 'replicas:'`);
       - a checklist of Secrets/prerequisites the user must provide;
       - the "needs a chart change" findings, listed separately.
-      Follow `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` when present;
-      otherwise print the branch, PR body and the exact `git push -u origin <branch>` /
-      `gh pr create ...` commands and stop with status `not pushed: <reason>`.
+      Follow `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md`
+      (status `not pushed: <reason>`).
 
 ## Notes
 

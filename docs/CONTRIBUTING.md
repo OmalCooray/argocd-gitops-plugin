@@ -27,6 +27,14 @@ Infra / docs chores can skip steps 1–2 but still land behind a reviewed PR.
   chart's `Chart.yaml` `version`.
 - New command → add to `EXPECTED_COMMANDS`; new skill → `EXPECTED_SKILLS`
   (`tests/test_plugin_components.py`).
+- Every cluster command and agent resolves the target first (`references/target-resolution.md`), and every
+  `kubectl`/`helm` cluster call carries `--context "$CTX"` (`tests/test_contracts.py`).
+- Plugin scripts are called quoted (`"${CLAUDE_PLUGIN_ROOT}/scripts/..."`), and `render_template.py` calls pass exactly
+  the placeholders their template uses.
+- Scripts under `scripts/` are executable and start with strict mode (`test_scripts_are_executable_bash_with_strict_mode`).
+- Every command's `argument-hint` appears verbatim in `README.md`; push/PR steps reference
+  `references/no-remote-fallback.md`.
+- Versions agree: top `CHANGELOG.md` heading, `plugin.json` and `marketplace.json`.
 - Starters (`skills/*/reference/starters/*.yaml`) are gated on a nil-safe
   `{{- if (.Values.<x>).enabled }}` and never `include` a subchart `_helpers`.
 
@@ -46,7 +54,7 @@ bash tests/smoke/argocd_e2e.sh
 
 1. Land all milestone PRs.
 2. Update `CHANGELOG.md`: move `[Unreleased]` items into a dated `[X.Y.Z]` section.
-3. Bump `.claude-plugin/plugin.json` `version`.
+3. Bump `version` in `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`.
 4. `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin vX.Y.Z`.
 
 ## Branch protection

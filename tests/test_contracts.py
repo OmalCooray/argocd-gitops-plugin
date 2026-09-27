@@ -611,3 +611,70 @@ def test_no_inline_helm_dependency_build_prose():
                         ("skills/values-review/SKILL.md", "render_chart.sh")):
         assert f'bash "${{CLAUDE_PLUGIN_ROOT}}/scripts/{script}"' in read(rel), (rel, script)
     assert "render_chart.sh" in read("scripts/list_crds.sh") and "helm dependency" not in read("scripts/list_crds.sh")
+
+
+# ---- F12: release hygiene ------------------------------------------------------------------
+
+NO_REMOTE_REF = "${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md"
+PUSH_COMPONENTS = [
+    "commands/argocd-add-chart.md", "commands/argocd-deploy.md", "commands/argocd-add-manifest.md",
+    "commands/argocd-add-dashboard.md", "commands/argocd-review-values.md", "commands/argocd-doctor.md",
+    "commands/argocd-bootstrap.md", "commands/argocd-init-repo.md", "agents/argocd-onboarder.md",
+]
+
+
+def _json(rel):
+    import json
+    return json.loads(read(rel))
+
+
+def test_no_remote_fallback_reference_is_complete():
+    t = read("references/no-remote-fallback.md")
+    for needle in ("git remote get-url origin", "gh auth status", "not pushed:", "PR: not opened",
+                   "/compare/", "?expand=1", "deploy key", "SSH", "never push", "delete the empty branch"):
+        assert needle.lower() in t.lower(), needle
+
+
+def test_every_push_step_references_the_fallback_plainly():
+    for rel in PUSH_COMPONENTS:
+        t = read(rel)
+        assert NO_REMOTE_REF in t, rel
+        assert "when present" not in t.split("no-remote-fallback.md")[1][:80], rel
+        assert "otherwise print the branch" not in t, rel
+
+
+def test_license_and_manifest_versions_are_consistent():
+    lic = read("LICENSE")
+    assert lic.startswith("MIT License") and "Omal Cooray" in lic
+    plugin = _json(".claude-plugin/plugin.json")
+    assert plugin["license"] == "MIT"
+    mk = _json(".claude-plugin/marketplace.json")
+    for key in ("name", "owner", "plugins"):
+        assert key in mk, key
+    assert mk["owner"]["name"] == "Omal Cooray"
+    entry = mk["plugins"][0]
+    for key in ("name", "source", "description"):
+        assert key in entry, key
+    assert entry["name"] == plugin["name"]
+    assert entry["version"] == plugin["version"]
+    src = (ROOT / entry["source"]).resolve()
+    assert src.is_dir() and (src / ".claude-plugin" / "plugin.json").is_file()
+    top = re.search(r"^## \[(\d+\.\d+\.\d+)\]", read("CHANGELOG.md"), re.M).group(1)
+    assert top == plugin["version"]
+    assert "[Unreleased]: " in read("CHANGELOG.md") and f"compare/v{top}...HEAD" in read("CHANGELOG.md")
+
+
+def test_support_matrix_facts():
+    s = read("docs/SUPPORT.md")
+    for needle in ("5.20", "1.34", "ssh-keygen", "PyYAML", "cgroup v2", "3.19"):
+        assert needle in s, needle
+
+
+def test_readme_limitations_prereqs_and_command_hints():
+    r = read("README.md")
+    assert "## Limitations" in r and "ssh-keygen" in r and "## Safety model" in r and "MIT" in r
+    assert ".mcp.json" not in r
+    for f in sorted((ROOT / "commands").glob("*.md")):
+        m = re.search(r'^argument-hint:\s*"(.*)"\s*$', f.read_text(encoding="utf-8"), re.M)
+        assert m, f.name
+        assert m.group(1) in r, (f.name, m.group(1))

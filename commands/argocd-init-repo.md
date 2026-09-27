@@ -79,7 +79,8 @@ creating the GitHub repo, end with a summary and the next command.
    - `git remote set-url origin <gitops-repo-url>` so `origin` matches the URL recorded
      in the repo (SSH for private, https for public); later `git ls-remote` / pushes
      then use the same URL Argo CD does.
-   - If `gh` is missing or unauthenticated, print the manual commands and stop:
+   - If `gh` is missing or unauthenticated, or the push cannot run, follow
+     `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` and print the manual commands, then stop:
      `gh repo create <owner>/<name> --<visibility> --source . --remote origin --push`,
      or, with an empty repo created in the GitHub UI,
      `git remote add origin <gitops-repo-url> && git push -u origin <branch>`.

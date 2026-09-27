@@ -81,8 +81,8 @@ opening the PR, end with a summary.
    - title: `Add <app> to catalog (<chart> <version>)`
    - body: chart source, version, why this version, and the output of
      `helm template charts/<app> | head -60` in a fenced block.
-   - If `gh` is missing/unauthenticated: print the branch name and the PR body
-     text, tell the user to open the PR manually. Do not fail silently.
+   - No remote, or `gh` missing/unauthenticated: follow
+     `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md`. Do not fail silently.
 9. Print: chart version pinned, files created, PR URL (or manual instructions).
 
 ## Notes

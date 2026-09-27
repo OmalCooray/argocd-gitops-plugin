@@ -1,5 +1,6 @@
 # argocd-gitops-plugin
 
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![ci](https://github.com/OmalCooray/argocd-gitops-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/OmalCooray/argocd-gitops-plugin/actions/workflows/ci.yml)
 
 A Claude Code plugin for running applications on Argo CD with GitOps. It
@@ -10,16 +11,31 @@ folder per **environment**, wired together with the app-of-apps pattern.
 
 | Command | Purpose |
 |---------|---------|
-| `/argocd-init-repo <name> [env]` | Scaffold a new GitOps repo and (optionally) create + push the GitHub repo. |
-| `/argocd-bootstrap [kube-context]` | Generate `bootstrap/install.sh` — installs Argo CD and applies the root app. |
-| `/argocd-add-chart <app> [version]` | Research an upstream Helm chart, pin it, scaffold `charts/<app>/`, open a PR. |
-| `/argocd-deploy <app> <env>` | Wire a catalog app into an environment (`Application` + values overlay), open a PR, then drive it to Healthy. |
-| `/argocd-sync <app> [env]` | Drive an already-declared app to Synced + Healthy + a passing functional check — diagnose → fix in git → re-sync on any stall. |
-| `/argocd-add-manifest <app> <kind>` | Add your own templated manifest (ServiceMonitor/PodMonitor, or any kind via free text) to a wrapper chart's `templates/`, gated + verified, open a PR. Opt-in. |
-| `/argocd-add-dashboard <app> <source>` | Import a community Grafana dashboard (grafana.com id / URL / file) for a scraped app — normalized + rendered as a sidecar ConfigMap in a per-app folder. Opt-in. |
-| `/argocd-review-values <app> [env] [--profile dev\|prod] [--write]` | Check a chart's values against a dev/prod readiness rubric; optionally open a PR with a hardened overlay. |
-| `/argocd-doctor [app]` | Diagnose a stuck / Degraded / OutOfSync app — one-shot inspection, root cause, and the fix. |
-| `/argocd-audit [env]` | Read-only drift report: repo vs live Argo CD. |
+| `/argocd-init-repo` | Scaffold a new GitOps repo and (optionally) create + push the GitHub repo. |
+| `/argocd-bootstrap` | Generate `bootstrap/install.sh` — installs Argo CD and applies the root app. |
+| `/argocd-add-chart` | Research an upstream Helm chart, pin it, scaffold `charts/<app>/`, open a PR. |
+| `/argocd-deploy` | Wire a catalog app into an environment (`Application` + values overlay), open a PR, then drive it to Healthy. |
+| `/argocd-sync` | Drive an already-declared app to Synced + Healthy + a passing functional check — diagnose → fix in git → re-sync on any stall. |
+| `/argocd-add-manifest` | Add your own templated manifest (ServiceMonitor/PodMonitor, or any kind via free text) to a wrapper chart's `templates/`, gated + verified, open a PR. Opt-in. |
+| `/argocd-add-dashboard` | Import a community Grafana dashboard (grafana.com id / URL / file) for a scraped app — normalized + rendered as a sidecar ConfigMap in a per-app folder. Opt-in. |
+| `/argocd-review-values` | Check a chart's values against a dev/prod readiness rubric; optionally open a PR with a hardened overlay. |
+| `/argocd-doctor` | Diagnose a stuck / Degraded / OutOfSync app — one-shot inspection, root cause, and the fix. |
+| `/argocd-audit` | Read-only drift report: repo vs live Argo CD. |
+
+Usage (arguments in `[]` are optional; `--context <name>` pins the kube-context, otherwise the plugin resolves and confirms one):
+
+```
+/argocd-init-repo <repo-name> [environment-name]
+/argocd-bootstrap [kube-context | --context <name>] [--env <environment>]
+/argocd-add-chart <app-name> [chart-version] [--repo <helm-repo-url>] [--context <name>]
+/argocd-deploy <app-name> <environment-name> [--context <name>]
+/argocd-sync <app-name> [environment-name] [--context <name>]
+/argocd-add-manifest <app> <kind>   (kind: servicemonitor | podmonitor | free text) [--context <name>]
+/argocd-add-dashboard <app> <source>   (source: grafana.com id | https URL | local .json) [--context <name>]
+/argocd-review-values <app-name> [environment-name] [--profile dev|prod] [--write] [--context <name>]
+/argocd-doctor [app-name]  (omit to triage every app in the env) [--fix] [--context <name>]
+/argocd-audit [environment-name] [--context <name>]
+```
 
 Plus the `argocd-onboarder` agent, which does add-chart -> deploy -> PR in one run.
 
@@ -50,9 +66,11 @@ The commands shell out to standard CLIs, so those must be installed and on `PATH
 | `gh` (GitHub CLI), logged in | 2.40 | creating the repo and opening PRs (`init-repo`, `add-chart`, `deploy`, `add-manifest`, `add-dashboard`, `review-values --write`). Without it the commands print manual steps instead. | `gh auth status` |
 | `helm` | 3.14 | `add-chart`, `deploy`, `add-manifest`, `add-dashboard`, `review-values`, and the generated `bootstrap/install.sh` | `helm version --short` |
 | `kubectl` | 1.28 | `bootstrap`, `audit`, `doctor`, `sync` | `kubectl version --client` |
-| `python` **+ PyYAML** | 3.10 | `deploy` (YAML validation), `add-dashboard` (the fetch script uses only the standard library) | `python -c "import yaml"` |
-| `argocd` CLI | 2.10 | *optional* — richer `audit`/`doctor`/`sync`; falls back to `kubectl` | `argocd version --client` |
-| `curl`, `jq` | any | *optional* — checking that Prometheus is scraping a new ServiceMonitor | `curl --version && jq --version` |
+| `python` **+ PyYAML** | 3.10 | PyYAML is needed by `deploy` (YAML validation) and `scripts/helm_deps.sh` (used by `add-chart`, `review-values`, `doctor`, `add-manifest`, the onboarder); `add-dashboard`'s fetch script and the template renderer use only the standard library | `python -c "import yaml"` |
+| `ssh-keygen` (OpenSSH) | any | private GitOps repos only — `bootstrap` generates the Argo CD deploy key | `ssh-keygen -?` |
+| `awk`, `sort`, `comm`, `tr`, `mktemp` | any | the helper scripts in `scripts/`; ship with Git Bash, WSL, macOS and Linux | `awk --version` or `awk -W version` |
+| `argocd` CLI | 2.10 | *optional* — the commands read state with `kubectl`; the CLI is only a convenience for you | `argocd version --client` |
+| `curl` | any | *optional* — checking that Prometheus is scraping a new ServiceMonitor or that a dashboard's metrics exist (`jq` is not required) | `curl --version` |
 
 Install PyYAML with `python -m pip install pyyaml`.
 
@@ -71,6 +89,19 @@ Install PyYAML with `python -m pip install pyyaml`.
 ```
 git --version && gh auth status && helm version --short   && kubectl version --client && python -c "import yaml; print('pyyaml ok')"
 ```
+
+## Safety model
+
+- **Target first.** Before touching a cluster, a command resolves the kube-context, prints a `Target:` line and asks
+  for a checkpoint; every `kubectl`/`helm` call then carries that `--context`
+  ([details](references/target-resolution.md)).
+- **No needless syncs.** `/argocd-sync` refreshes before syncing, exits when the app is already Synced and Healthy,
+  and never force-syncs a healthy app.
+- **Privileged manifests are refused.** `/argocd-add-manifest` will not author cluster-admin bindings, `system:masters`
+  grants and similar.
+- **Secrets stay out of output.** A generated deploy key's private half is never printed or committed.
+- **Nothing is pushed silently.** Pushes and PRs sit behind a checkpoint; with no remote or no `gh`, the plugin prints
+  the manual steps ([details](references/no-remote-fallback.md)).
 
 ## Install
 
@@ -91,6 +122,22 @@ cd data-platform-k8s-configs
 /argocd-deploy podinfo data-platform    # review + merge the PR
 /argocd-audit data-platform
 ```
+
+## Limitations
+
+- **One environment per scaffold.** The generated repo starts with a single environment; multi-environment
+  scaffolding and promotion are planned (see the [roadmap](docs/ROADMAP.md)).
+- **Secrets are not managed.** Create them out-of-band with `kubectl create secret`; the Argo CD deploy-key Secret for
+  a private repo is the only one the plugin creates.
+- **No rollback command.** Revert in git and re-sync.
+- **Argo CD only.** Flux is not supported.
+- **Bash-based.** Commands run through Bash (Git Bash or WSL on Windows).
+- **Behaviour is verified by contract tests and live runs.** The commands and skills are instructions followed by
+  the model; there is no formal eval suite yet.
+
+## License
+
+[MIT](LICENSE).
 
 ## Design & roadmap
 

@@ -87,8 +87,7 @@ with the root-cause / evidence / fix summary.
    5. `git add environments/<env>/values/<app>.yaml`, then commit.
    6. **Checkpoint:** `> About to push fix/<app>-<slug> and open a PR. Proceed?`
    7. Push, then open the PR (body: root cause, evidence line, the one-line diff). Follow
-      `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` when present, otherwise
-      print the branch, PR body and exact `git push` / `gh pr create` commands and stop.
+      `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` for the no-remote / no-`gh` cases.
 
    Without `--fix`, just report.
 8. After the fix is merged, re-sync and re-run once to confirm — or, to drive it

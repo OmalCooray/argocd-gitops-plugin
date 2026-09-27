@@ -130,9 +130,8 @@ silent background jobs or polling loops.
 9. FINAL-CHECK: run `kubectl --context "$CTX" get applications -n "$ARGOCD_NS"` once and show the
    result; `root-<env>` should reach Synced.
 10. **Checkpoint** before `git push` + PR for the `bootstrap/install-<env>` branch (show
-    branch name and PR title). Follow the no-remote/no-gh handling in
-    `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` when present, otherwise print
-    the branch, PR body and the exact `git push` / `gh pr create` commands and stop.
+    branch name and PR title). Follow
+    `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` for the no-remote / no-`gh` cases.
 
 ## Output
 

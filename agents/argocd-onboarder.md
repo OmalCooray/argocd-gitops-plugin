@@ -50,8 +50,7 @@ directory, from nothing to an open PR.
   Before doing the work, run `git remote get-url origin` and `gh auth status` (read-only). If either fails (no remote or unauthenticated `gh`), still do all
   local work (the draft is valuable), record `PR: not opened — <reason>` in the hand-off from the start, and stop at
   step 10 with the fallback: follow `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md`
-  when present; otherwise print the branch, PR body and the exact `git push -u origin <branch>` / `gh pr create …` commands
-  and stop with status `not pushed: <reason>`.
+  (status `not pushed: <reason>`).
 - If the env is missing from the request, stop and return the single question listing the environments (`ls environments/`);
   if the chart is missing, return the question with the discovery hint (ArtifactHub URL for the chart name).
 - Fix loops: at most 3 attempts, then stop and report (see Failure handling). This cap covers the local lint/render loops
@@ -74,7 +73,7 @@ directory, from nothing to an open PR.
    Pull upstream values, add only the minimal overrides needed
    for a first healthy deploy (resources, persistence, ingress off unless asked).
    If the chart is known to need a local-cluster override (see
-   `${CLAUDE_PLUGIN_ROOT}/skills/values-review/reference/chart-notes.md` when present, e.g. metrics-server needs
+   `${CLAUDE_PLUGIN_ROOT}/skills/values-review/reference/chart-notes.md`, e.g. metrics-server needs
    `--kubelet-insecure-tls` on kind/Docker Desktop), add it to the **env overlay**, commented `# local clusters only`,
    not the catalog — only when ALL hold: the resolved context is local (`kind-*`, `docker-desktop`, `minikube`, `k3d-*`,
    `rancher-desktop`), the env's destination (`Destination cluster for <env>` in `.claude/CLAUDE.md`) is that cluster

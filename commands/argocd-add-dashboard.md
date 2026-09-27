@@ -82,6 +82,7 @@ the PR, end with a summary.
 9. Checkpoint → commit → push → `gh pr create` (title `Add Grafana dashboard to
    <app>`; body: the grafana.com source + revision, the folder, the metrics /
    exporter it needs).
+   Follow `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` for the no-remote / no-`gh` cases.
 10. Suggest `/argocd-sync <app> <env>`. Functional check: after sync, Grafana
     `/api/search?type=dash-db&query=<title>` returns it with
     `folderTitle == <app>`, and its panels render data (open one — not "No data").

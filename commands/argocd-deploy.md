@@ -97,7 +97,8 @@ summary.
    - title: `Deploy <app> to <env>`
    - body: source paths, target revision (and pin caveat for prod), destination
      namespace, and `helm template charts/<app> -f environments/<env>/values/<app>.yaml | head -60`.
-   - `gh` missing → print branch + PR body, stop.
+   - No remote, or `gh` missing/unauthenticated: follow
+     `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md`.
 10. Print the PR URL (or manual steps).
 11. **Drive it to healthy.** Once the PR is merged (checkpoint: ask if you should
     merge it now, or wait for them to), run the `/argocd-sync <app> <env>` flow:

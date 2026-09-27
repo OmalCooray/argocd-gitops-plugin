@@ -92,6 +92,7 @@ the PR, end with a summary.
 8. Bump `charts/<app>/Chart.yaml` `version`.
 9. Checkpoint → commit → push → `gh pr create` (title `Add <kind> to <app>`,
    body: what it selects/scrapes, the values stanza, `helm template … | head`).
+   Follow `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` for the no-remote / no-`gh` cases.
 10. Suggest `/argocd-sync <app> <env>` to roll it out. For a ServiceMonitor /
     PodMonitor, name the functional check: after sync, the target shows in
     Prometheus `/api/v1/targets` and `up{...}` returns 1.

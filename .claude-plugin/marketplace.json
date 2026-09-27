@@ -1,0 +1,22 @@
+{
+  "name": "argocd-gitops-plugin",
+  "description": "Argo CD GitOps plugin for Claude Code.",
+  "owner": {
+    "name": "Omal Cooray",
+    "email": "omalcooray9@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "argocd-gitops-plugin",
+      "description": "Scaffold and operate an Argo CD GitOps repo: bootstrap Argo CD, onboard Helm charts into a catalog, deploy apps to environments via app-of-apps, and audit drift.",
+      "version": "0.6.0",
+      "author": {
+        "name": "Omal Cooray",
+        "email": "omalcooray9@gmail.com"
+      },
+      "source": "./",
+      "category": "development",
+      "keywords": ["argocd", "gitops", "helm", "kubernetes", "app-of-apps"]
+    }
+  ]
+}
