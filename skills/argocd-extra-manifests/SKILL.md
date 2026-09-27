@@ -108,13 +108,14 @@ is global) but compute names from the wrong (wrapper) context/values.
 
 ## Privileged kinds
 
-Applies to any free-text kind, including extra RBAC. A kind is *privileged* if it is a Role/RoleBinding/ClusterRole/ClusterRoleBinding, grants `*` verbs or resources,
-binds `cluster-admin`, `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters`,
-is a Validating/MutatingWebhookConfiguration or a CRD, or runs `privileged: true` / `hostPath` / `hostNetwork`.
-For a privileged kind: (1) print one line saying exactly what it grants and to whom; (2) default its values gate to
-`enabled: false`; (3) **refuse outright, with no override,** any binding of `cluster-admin` or `*`/`*` to
-`system:authenticated`, `system:unauthenticated` or `system:anonymous` — do not author it even if the user insists
-or says it is intentional; (4) checkpoint `> This grants <X> to <Y>. Proceed?` before committing.
+Applies to any free-text kind, including extra RBAC.
+
+A kind is *privileged* if it is: a ClusterRole or ClusterRoleBinding (always); a namespaced Role/RoleBinding that has `*` in verbs, resources or apiGroups, grants any of `secrets`, `pods/exec`, `pods/attach`, `serviceaccounts/token`, or the verbs `escalate`, `bind`, `impersonate`, or binds a ClusterRole other than the built-in read-only `view`; any rule with `*` verbs or resources; any binding of `cluster-admin`, `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters`; a Validating/MutatingWebhookConfiguration; a CRD; or a workload running `privileged: true` / `hostPath` / `hostNetwork`. A benign namespaced Role (e.g. read ConfigMaps in its own namespace) is not privileged: it needs no extra checkpoint but still follows the normal gate/values pattern. For a privileged kind:
+- print one line saying exactly what it grants and to whom;
+- default its values gate to `enabled: false`;
+- refuse outright, with no override, even if the user insists or says it is intentional, any binding of `cluster-admin` or `*` on `*` to `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters` (do not author it);
+- judge the effective grant, not names: a binding is refused if the role it references, whether defined in this manifest or an existing ClusterRole, resolves to `cluster-admin` or to `*` on `*` (any `apiGroups`/`resources`/`verbs` all `*`). Subject spelling is irrelevant: kind `Group`, `User` or `ServiceAccount`, with or without the `system:` prefix, including `system:serviceaccounts` and `system:serviceaccounts:<ns>`;
+- checkpoint `> This grants <X> to <Y>. Proceed?` before committing.
 
 ## References
 

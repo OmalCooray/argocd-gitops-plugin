@@ -207,10 +207,23 @@ def test_audit_summary_line_template_is_complete():
     assert "unknown" in window and "0" in window
 
 
+REFUSED = ["system:anonymous", "system:authenticated", "system:masters", "system:unauthenticated"]
+
+
+def _norm(s):
+    return " ".join(s.split())
+
+
 def _refusal_subjects(text):
-    i = text.index("no override")
-    window = text[i:i + 400]
-    return sorted(set(re.findall(r"system:(?:authenticated|unauthenticated|anonymous)", window)))
+    line = next(l.strip() for l in text.splitlines() if l.strip().startswith("- refuse outright"))
+    assert "no override" in line and "even if the user insists" in line
+    return sorted(set(re.findall(r"system:(?:authenticated|unauthenticated|anonymous|masters)", line)))
+
+
+def _guardrail_block(text):
+    start = text.index("A kind is *privileged* if")
+    end = text.index("before committing.", start) + len("before committing.")
+    return _norm(text[start:end])
 
 
 def test_add_manifest_has_guardrail_and_crd_path():
@@ -221,27 +234,33 @@ def test_add_manifest_has_guardrail_and_crd_path():
         assert needle in m, needle
     assert "## Privileged kinds" in s
 
-    # (a) guardrail precedes the authoring instruction
+    # guardrail precedes the authoring instruction
     assert m.index("privileged-kind guardrail") < m.index("author `charts/<app>/templates/<slug>.yaml`")
 
-    # (b) refusal is absolute and names all three subjects
-    assert _refusal_subjects(m) == ["system:anonymous", "system:authenticated", "system:unauthenticated"]
-    assert "`cluster-admin`" in m and "> This grants <X> to <Y>. Proceed?" in m
+    # refusal is absolute, names all four subjects, identical in both files
+    assert _refusal_subjects(m) == REFUSED
+    assert _refusal_subjects(s) == REFUSED
+    assert "> This grants <X> to <Y>. Proceed?" in m
 
-    # (c)/(d) CRD check step
+    # effective-grant rule and no drift between command and skill
+    for text in (m, s):
+        assert "effective grant" in text and "resolves to" in text
+        assert "system:serviceaccounts:<ns>" in text
+    assert _guardrail_block(m) == _guardrail_block(s)
+    assert "benign namespaced Role" in m and "`escalate`" in m and "`pods/exec`" in m
+
+    # CRD check step
     step6 = m.split("\n6. CRD check", 1)[1].split("\n7. Verify", 1)[0]
     for needle in ("servicemonitors.monitoring.coreos.com", "podmonitors.monitoring.coreos.com",
                    "prometheus-operator-crds", "sync-wave", "https://prometheus-community.github.io/helm-charts",
-                   "any provider", "kubectl --context \"$CTX\" get crd"):
+                   "any provider", "kubectl --context \"$CTX\" get crd", "--include-crds",
+                   "helm dependency build \"$T/", "crds.enabled: false",
+                   "argocd.argoproj.io/sync-wave", "missing annotation means",
+                   "strictly lower", "serviceMonitor.enabled: true", "podMonitor.enabled"):
         assert needle in step6, needle
     assert "report it and stop" not in step6
+    assert "helm dependency build charts/" not in step6
 
     # gate default follows the CRD check
     step5 = m.split("\n5. Add the gating values stanza", 1)[1].split("\n6. CRD check", 1)[0]
     assert "finalized in step 6" in step5
-
-    # (e) skill mirrors the command
-    assert _refusal_subjects(s) == _refusal_subjects(m)
-    sp = s.split("## Privileged kinds", 1)[1]
-    for needle in ("system:masters", "enabled: false", "no override", "> This grants <X> to <Y>. Proceed?"):
-        assert needle in sp, needle
