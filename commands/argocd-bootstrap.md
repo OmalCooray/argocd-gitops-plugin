@@ -24,10 +24,13 @@ silent background jobs or polling loops.
 
 1. Load the skill `argocd-repo-conventions`.
 2. Determine the Argo CD Helm chart version to pin (local only, no cluster):
-   - Run `helm repo add argo https://argoproj.github.io/argo-helm` then
-     `helm search repo argo/argo-cd --versions -o json --max-col-width 0`.
-   - Take the first entry whose `version` has no `-` pre-release suffix; record
-     its chart `version` in `install.sh`.
+   - Run `helm repo add argo https://argoproj.github.io/argo-helm` then pick the
+     version without `jq` (use `python3` if `python` is missing):
+     ```bash
+     helm search repo argo/argo-cd --versions -o json --max-col-width 0 | python -c "import json,sys; print(next(e['version'] for e in json.load(sys.stdin) if '-' not in e['version'] and '-' not in e['app_version']))"
+     ```
+   - That is the first entry whose chart `version` and `app_version` both have no
+     `-` pre-release suffix; record it in `install.sh`.
    - If `helm` is unavailable, query ArtifactHub
      (`/packages/helm/argo/argo-cd`) via WebFetch and pick the latest stable.
 3. If the repo has more than one environment, ask the user which environment this
@@ -39,51 +42,93 @@ silent background jobs or polling loops.
    ```bash
    python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/install.sh.tmpl" bootstrap/install.sh ARGOCD_NAMESPACE="$ARGOCD_NS" ARGOCD_CHART_VERSION=<chart-version> ENV_NAME=<env> GITOPS_REPO_URL=<repo-url>
    ```
-5. Show the rendered script. Commit it and mark it executable in git (Windows
-   records mode 100644 otherwise):
+5. Show the rendered script. Work on a branch and commit it, marking it
+   executable in git (Windows records mode 100644 otherwise):
    ```bash
+   git switch -c bootstrap/install-<env>
    git add bootstrap/install.sh
    git update-index --chmod=+x bootstrap/install.sh
+   git commit -m "chore(bootstrap): pin Argo CD chart and render install.sh"
    ```
+   (Add the Co-Authored-By trailer.) Nothing is pushed yet; the push/PR happens once,
+   in step 10.
 6. **Checkpoint:** `> Run ./bootstrap/install.sh against context "$CTX" now? It
    installs Argo CD (~3 min) and applies the root app.` Wait for yes.
 7. On yes, run `./bootstrap/install.sh "$CTX"` **in the foreground** so its output (helm progress, CRD wait,
    root-app apply) streams into the conversation. Do not background it.
    `install.sh` printed how to open the UI and get the admin password; repeat
-   those lines if the output scrolled. On no, just print the command for them to
-   run later and skip steps 8-9.
-8. **Private-repo access** (only after `install.sh` finished). Let `<owner>/<name>`
-   come from the recorded `GitOps repo URL`. Precondition: `ssh-keygen` (OpenSSH) is
-   needed for private repos only; if it is missing, print the manual steps below
-   and stop.
-   - Detect visibility: `gh repo view <owner>/<name> --json visibility -q .visibility`.
-     If `gh` is unavailable, probe anonymously:
-     `GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/<owner>/<name>.git HEAD`
-     (failure means treat it as private). Public: skip to step 9.
-   - Private: the recorded URL must be the SSH form `git@github.com:<owner>/<name>.git`.
-     If it is https, **checkpoint** and, on yes, edit `environments/<env>/root.yaml`,
-     `.claude/CLAUDE.md` and every `environments/*/apps/*.yaml` `repoURL` equal to the
-     old URL to the SSH form on a branch. Never rewrite silently.
-   - If Secret `repo-<name>` already exists
-     (`kubectl --context "$CTX" -n "$ARGOCD_NS" get secret repo-<name>`), say so and
-     skip the rest of this step (idempotent re-run).
-   - **Checkpoint:** `> This repo is private: Argo CD needs a read-only deploy key. Create one (the private key is stored only in a cluster Secret and deleted locally)? Proceed?`
+   those lines if the output scrolled. For a private repo the root app was applied
+   before Argo CD had a credential, so `root-<env>` showing a ComparisonError
+   ("repository not accessible") here is expected; step 8 fixes it. On no, just
+   print the command for them to run later and skip steps 8-9.
+8. **Private-repo access** (only after `install.sh` finished).
+   - Derive `OWNER` and `NAME` from the recorded `GitOps repo URL`: strip a trailing
+     `.git` and the `git@github.com:` or `https://github.com/` prefix, then set
+     `OWNER=<owner> NAME=<name>` shell variables and use `"$OWNER"`/`"$NAME"` below.
+   - Preconditions: `gh` (authenticated) and `ssh-keygen` (OpenSSH) are needed for
+     private repos only. If either is missing, print the manual fallback and stop:
+     run `ssh-keygen -t ed25519 -N "" -f <keyfile>`; paste `<keyfile>.pub` into the
+     repo's Settings -> Deploy keys (leave "Allow write access" unticked); then run
+     the two `kubectl` commands from the block below with `--from-file=sshPrivateKey=<keyfile>`,
+     and delete the key files.
+   - Detect visibility: `gh repo view "$OWNER/$NAME" --json visibility -q .visibility`.
+     `PRIVATE` and `INTERNAL` count as private; `PUBLIC` skips to step 9. If `gh`
+     cannot answer, probe anonymously:
+     `GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/"$OWNER"/"$NAME".git HEAD`.
+     Only an authentication failure (exit 128 with "Authentication failed",
+     "could not read Username" or "not found") means private; a network error means
+     unknown, so ask the user.
+   - If Secret `repo-$NAME` already exists
+     (`kubectl --context "$CTX" -n "$ARGOCD_NS" get secret "repo-$NAME" --ignore-not-found`),
+     say so and skip the credential creation (idempotent re-run); still do the
+     https-to-ssh check below.
+   - The recorded URL must be the SSH form `git@github.com:$OWNER/$NAME.git`. If it is
+     https, the Secret (keyed to the SSH URL) would never match. Propose this exact
+     edit under ONE checkpoint: every `repoURL:` whose value is
+     `https://github.com/$OWNER/$NAME` (with or without `.git`) becomes
+     `git@github.com:$OWNER/$NAME.git` in `environments/*/root.yaml` and in every
+     `environments/*/apps/*.yaml` (both sources of each app: the chart-path source and
+     the `ref: values` source), plus the `GitOps repo URL` line in `.claude/CLAUDE.md`.
+     Then re-render `bootstrap/install.sh` with the renderer (step 4) using the new
+     `GITOPS_REPO_URL` so its header comment is not stale, and commit on the
+     `bootstrap/install-<env>` branch. Because the root cannot read git yet, a merged
+     branch alone cannot fix the live root, so apply it from the working tree:
+     `kubectl --context "$CTX" apply -n "$ARGOCD_NS" -f environments/<env>/root.yaml`.
+     Tell the user the child apps stay on https in git until the PR (step 10) is merged.
+   - **Checkpoint:** `> This repo is private. About to add a READ-ONLY deploy key to <owner>/<name> on GitHub and create Secret repo-<name> in "$CTX" (namespace "$ARGOCD_NS"); the private key is deleted locally. Proceed?`
    - On yes (never print, cat or log the private key or Secret data; the deploy key is added read-only, gh's default):
      ```bash
      KEY="$(mktemp -d)/argocd-deploy-key"
-     ssh-keygen -t ed25519 -N "" -C "argocd-<name>" -f "$KEY"
-     gh repo deploy-key add "$KEY.pub" --title "argocd-readonly-$CTX" -R <owner>/<name>
-     kubectl --context "$CTX" -n "$ARGOCD_NS" create secret generic repo-<name> --from-literal=type=git --from-literal=url=git@github.com:<owner>/<name>.git --from-file=sshPrivateKey="$KEY"
-     kubectl --context "$CTX" -n "$ARGOCD_NS" label secret repo-<name> argocd.argoproj.io/secret-type=repository
-     shred -u "$KEY" 2>/dev/null || rm -f "$KEY"; rm -f "$KEY.pub"
+     ssh-keygen -t ed25519 -N "" -C "argocd-$NAME" -f "$KEY"
+     gh repo deploy-key add "$KEY.pub" --title "argocd-readonly-$CTX" -R "$OWNER/$NAME"
+     kubectl --context "$CTX" -n "$ARGOCD_NS" create secret generic "repo-$NAME" --from-literal=type=git --from-literal=url="git@github.com:$OWNER/$NAME.git" --from-file=sshPrivateKey="$KEY"
+     kubectl --context "$CTX" -n "$ARGOCD_NS" label secret "repo-$NAME" argocd.argoproj.io/secret-type=repository
+     shred -u "$KEY" 2>/dev/null || rm -f "$KEY"; rm -f "$KEY.pub"; rmdir "$(dirname "$KEY")"
      ```
+   - On ANY failure after `ssh-keygen`: delete `$KEY*` and its temp dir, report the ONE
+     error line, and stop. If the GitHub key was already added but the Secret creation
+     failed, name the key title `argocd-readonly-<ctx>` to remove in the repo's
+     Settings -> Deploy keys.
+   - Each run creates a NEW deploy key (titles may repeat; GitHub only rejects a
+     duplicate key). Old keys are not revoked automatically: list them with
+     `gh repo deploy-key list -R "$OWNER/$NAME"` and remove with `gh repo deploy-key delete`.
+     The local private key is safe to delete because only the cluster Secret needs it.
+     To rotate, delete the Secret and run this step again.
    - Argo CD ships GitHub's SSH host keys, so github.com needs no `known_hosts`
      step; for other hosts the user must add theirs (out of scope).
-   - `install.sh` applied the root app before the credential existed, so refresh it
-     (a refresh starts no operation):
+   - Refresh the root (a refresh starts no operation):
      `kubectl --context "$CTX" -n "$ARGOCD_NS" annotate application root-<env> argocd.argoproj.io/refresh=hard --overwrite`
-9. Run `kubectl --context "$CTX" get applications -n "$ARGOCD_NS"` once and show the
-   result; `root-<env>` should reach Synced (re-check once after a private-repo refresh).
+     Allow ONE bounded re-check about 15 s later (no loop). If `root-<env>` is still not
+     Synced, run once
+     `kubectl --context "$CTX" -n "$ARGOCD_NS" get application root-<env> -o jsonpath='{.status.conditions[*].message}'`,
+     report that single line, and hand back with the likely causes: deploy key not
+     added, the org disallows deploy keys, or a URL mismatch.
+9. FINAL-CHECK: run `kubectl --context "$CTX" get applications -n "$ARGOCD_NS"` once and show the
+   result; `root-<env>` should reach Synced.
+10. **Checkpoint** before `git push` + PR for the `bootstrap/install-<env>` branch (show
+    branch name and PR title). Follow the no-remote/no-gh handling in
+    `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` when present, otherwise print
+    the branch, PR body and the exact `git push` / `gh pr create` commands and stop.
 
 ## Output
 

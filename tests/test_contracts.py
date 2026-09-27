@@ -340,16 +340,40 @@ def test_bootstrap_handles_private_repos_with_a_deploy_key():
     for needle in ("gh repo view", "ssh-keygen", "deploy-key add", "argocd.argoproj.io/secret-type=repository", "sshPrivateKey"):
         assert needle in b, needle
     assert "head -5" not in b
-    assert "read-only deploy key" in b
+    assert "read-only deploy key" in b.lower()
     assert "--allow-write" not in b
+
+
+def _bootstrap_step8(b):
+    return b[b.index("8. **Private-repo access**"):b.index("9. FINAL-CHECK")]
 
 
 def test_bootstrap_private_repo_step_runs_after_install_and_before_final_check():
     b = read("commands/argocd-bootstrap.md")
-    run = b.index('./bootstrap/install.sh "$CTX"')
-    priv = b.index("gh repo view")
-    assert run < priv < b.index("Synced")
-    assert "argocd.argoproj.io/refresh=hard" in b
+    # Anchor on the real commands; step 9 carries the FINAL-CHECK marker so the
+    # last "Synced" (the final check) is what we order against.
+    order = [b.find('install.sh "$CTX"'), b.find("gh repo view"), b.find("deploy-key add"),
+             b.find("create secret"), b.find("refresh=hard"), b.rfind("Synced")]
+    assert -1 not in order and order == sorted(order), order
+    assert b.index("9. FINAL-CHECK") < b.rfind("Synced")
+
+
+def test_bootstrap_step8_never_reads_secret_data_or_traces():
+    s = _bootstrap_step8(read("commands/argocd-bootstrap.md"))
+    for bad in ("-o yaml", "describe secret", "set -x"):
+        assert bad not in s, bad
+    assert not re.search(r"get secret[^\n]*-o", s)
+
+
+def test_bootstrap_private_repo_wording_and_rewrite():
+    b = read("commands/argocd-bootstrap.md")
+    for needle in ('kubectl --context "$CTX" apply -n "$ARGOCD_NS" -f environments/<env>/root.yaml',
+                   "ref: values", "both sources", "READ-ONLY deploy key", "create Secret",
+                   "repository not accessible", ".status.conditions[*].message",
+                   "json.load(sys.stdin)"):
+        assert needle in b, needle
+    assert "head -5" not in b
+    assert "deploy key or credential Secret" in read("references/interaction-style.md")
 
 
 def test_bootstrap_never_prints_the_private_key():
