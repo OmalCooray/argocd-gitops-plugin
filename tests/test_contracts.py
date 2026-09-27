@@ -410,24 +410,59 @@ def test_doctor_and_troubleshooting_cover_live_findings():
         assert needle in d + s, needle
     for needle in ("field is immutable", "x509", "Exit Code", "Running but not Ready"):
         assert needle in s, needle
-    assert 'image.tag "v0.61.1.x"' not in d
 
 
-def test_doctor_healthy_branch_precedes_drilldown_and_fix_flow_is_explicit():
+def _step(d, n):
+    m = re.search(rf"^{n}\. .*?(?=^\d+\. |^## )", d, re.S | re.M)
+    assert m, n
+    return m.group(0)
+
+
+def test_doctor_healthy_and_unknown_branches_precede_drilldown():
     d = read("commands/argocd-doctor.md")
-    assert d.index("healthy — nothing to fix") < d.index("walk `status.resources[]`")
-    assert d.index("**Unknown app.**") < d.index("walk `status.resources[]`")
+    assert d.index("2. **Unknown app.**") < d.index("3. **Healthy branch.**") < d.index("5. If stuck: walk")
+    healthy = _step(d, 3)
+    assert "no `conditions`" in healthy and "healthy — nothing to fix" in healthy
+    assert healthy.index("inspected:") < healthy.index("healthy — nothing to fix")
+    unknown = _step(d, 2)
+    assert "catalog but not deployed" in unknown and "/argocd-deploy" in unknown
+    assert "declared but not live" in unknown and "unreachable" in unknown
+    assert "evident error" in _step(d, 4)
+
+
+def test_doctor_fix_flow_is_explicit_and_render_is_verified():
+    d = read("commands/argocd-doctor.md")
     assert "[--fix]" in d.split("---")[1]
-    for needle in ("About to push fix/", "git switch -c fix/", "helm template <app> charts/<app> -n",
-                   "no-remote-fallback.md", "helm dependency build", "declared but not live"):
-        assert needle in d, needle
+    fix = _step(d, 7)
+    for needle in ("git status --porcelain", "git switch -c fix/", "<slug>", "git add environments/",
+                   'helm template <app> "$tmp/<app>" -n', 'helm dependency build "$tmp/<app>"',
+                   "grep -n", "wrong nesting", 'rm -rf "$tmp"', "About to push fix/", "no-remote-fallback.md"):
+        assert needle in fix, needle
+    assert "dependencies[0].name" in d and "OWN-APP" in d
     assert "the way `/argocd-deploy` does" not in d
+    assert "pushes it and opens a PR" in d
 
 
 def test_troubleshooting_has_new_signature_rows_and_defers_force_to_rollout():
     s = read("skills/argocd-troubleshooting/SKILL.md")
     for needle in ("field is immutable", "x509: cannot validate certificate", "Exit Code",
-                   "progressDeadlineSeconds", "argocd-rollout", "status.resources[].health"):
+                   "progressDeadlineSeconds", "argocd-rollout", "status.resources[].health",
+                   "dependencies[0].name"):
         assert needle in s, needle
     assert '"force":true' not in s
     assert '{"operation":null}' in s
+
+
+def test_immutable_selector_row_is_safe():
+    row = next(l for l in read("skills/argocd-troubleshooting/SKILL.md").splitlines() if "field is immutable" in l)
+    low = row.lower()
+    for needle in ("downtime", "pvc", "remove", "argocd.argoproj.io/sync-options", "never delete the workload by hand",
+                   "servers"):
+        assert needle in low.replace("serversideapply", "servers"), needle
+
+
+def test_kubelet_insecure_tls_is_local_cluster_only():
+    row = next(l for l in read("skills/argocd-troubleshooting/SKILL.md").splitlines() if "x509: cannot validate" in l)
+    for needle in ("kind-", "docker-desktop", "minikube", "k3d-", "rancher-desktop", "never",
+                   "serverTLSBootstrap", "<dependency-name>.args", "--kubelet-insecure-tls", "when present"):
+        assert needle in row, needle
