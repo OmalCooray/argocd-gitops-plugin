@@ -54,3 +54,26 @@ def test_no_bare_kubectl_in_fenced_examples():
         for line in fenced_lines(read(rel)):
             if re.search(r"\bkubectl\s", line) and "--context" not in line and not allowed.search(line):
                 raise AssertionError(f"{rel}: kubectl without --context: {line.strip()}")
+
+
+def prose_without_fences(text):
+    out, inside = [], False
+    for line in text.splitlines():
+        if line.strip().startswith("```"):
+            inside = not inside
+            continue
+        if not inside:
+            out.append(line)
+    return "\n".join(out)
+
+
+def test_no_bare_kubectl_in_inline_code():
+    allowed = re.compile(r"kubectl\s+(config\s|version\s+--client)")
+    for rel in CLUSTER_COMPONENTS + [
+        "skills/argocd-rollout/SKILL.md",
+        "skills/argocd-troubleshooting/SKILL.md",
+    ]:
+        for span in re.findall(r"`([^`]+)`", prose_without_fences(read(rel))):
+            # A span naming only a verb ("kubectl edit") is prose, not a runnable command.
+            if re.search(r"\bkubectl\s+\S+\s+\S", span) and "--context" not in span and not allowed.search(span):
+                raise AssertionError(f"{rel}: inline kubectl without --context: {span.strip()}")

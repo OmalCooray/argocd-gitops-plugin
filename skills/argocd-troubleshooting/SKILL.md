@@ -14,7 +14,7 @@ find why.
 ```bash
 argocd app get <app> -o json            # if the CLI is logged in
 # or:
-kubectl --context "$CTX" -n <argocd-ns> get application <app> -o json
+kubectl --context "$CTX" -n $ARGOCD_NS get application <app> -o json
 ```
 
 Read, in this order:
@@ -61,7 +61,7 @@ kubectl --context "$CTX" -n <dest-ns> logs <pod> --previous --tail=50           
 | App `OutOfSync` forever on a `Job`; diff shows a `controller-uid` selector | K8s mutated the started Job's selector; the rendered manifest can't match | annotate the Job `argocd.argoproj.io/hook: Sync` + `hook-delete-policy: BeforeHookCreation` |
 | App `OutOfSync` forever on `Secret`s with random-looking names | chart generates random secrets each render (fernet key, jwt, api key, broker url) | set the chart's `*SecretName` values to stable out-of-band Secrets |
 | `OutOfSync` on a hand-made resource Argo CD calls "extra" | it carries `app.kubernetes.io/instance: <app>` (e.g. `kubectl apply`-ed over a chart object) | recreate it with no Argo CD labels/annotations |
-| Pod `Pending`; event `unbound immediate PersistentVolumeClaims` | no default StorageClass, or the named `storageClass` doesn't exist | set a real `storageClassName`; `kubectl get storageclass` |
+| Pod `Pending`; event `unbound immediate PersistentVolumeClaims` | no default StorageClass, or the named `storageClass` doesn't exist | set a real `storageClassName`; `kubectl --context "$CTX" get storageclass` |
 | Pod `Pending`; event `Insufficient cpu/memory` | requests exceed node allocatable | lower requests, or scale the cluster |
 | Pod `OOMKilled` (in `describe` → Last State) | `limits.memory` too low for the app | raise `resources.limits.memory` |
 | Sync fails `the server could not find the requested resource` / `no matches for kind` | a CRD the manifests use isn't installed yet (ordering) | sync the CRD/operator first (sync-wave, or a separate app); `ServerSideApply=true` |
@@ -79,10 +79,10 @@ reverts it and the drift hides the real problem.
 
 ```bash
 # usually enough for an app with syncPolicy.automated:
-kubectl --context "$CTX" -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context "$CTX" -n $ARGOCD_NS annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 
 # force an explicit sync by writing the operation:
-kubectl --context "$CTX" -n <argocd-ns> patch application <app> --type merge -p \
+kubectl --context "$CTX" -n $ARGOCD_NS patch application <app> --type merge -p \
   '{"operation":{"initiatedBy":{"username":"troubleshooting"},"sync":{"revision":"HEAD","syncStrategy":{"apply":{"force":true}}}}}'
 ```
 
@@ -97,9 +97,9 @@ needs to fix.
 **Recipe** (after the fix is merged to the tracked branch):
 
 ```bash
-kubectl --context "$CTX" -n <argocd-ns> patch application <app> --type merge -p '{"operation":null}'
-kubectl --context "$CTX" -n <argocd-ns> patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
-kubectl --context "$CTX" -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context "$CTX" -n $ARGOCD_NS patch application <app> --type merge -p '{"operation":null}'
+kubectl --context "$CTX" -n $ARGOCD_NS patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
+kubectl --context "$CTX" -n $ARGOCD_NS annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 # if automated sync doesn't re-trigger within ~30s, force it with the patch above
 ```
 
@@ -109,9 +109,9 @@ The only direct cluster actions troubleshooting ever takes: trigger/clear a sync
 ## Offline mode
 
 No cluster access? Ask the user to paste:
-- `argocd app get <app> -o yaml` (or `kubectl get application <app> -n argocd -o yaml`)
-- `kubectl get pods -n <dest-ns> -o wide`
-- `kubectl describe pod <failing-pod> -n <dest-ns>`
-- `kubectl logs <failing-pod> -n <dest-ns> --all-containers --tail=100`
+- `argocd app get <app> -o yaml` (or `kubectl --context "$CTX" get application <app> -n $ARGOCD_NS -o yaml`)
+- `kubectl --context "$CTX" get pods -n <dest-ns> -o wide`
+- `kubectl --context "$CTX" describe pod <failing-pod> -n <dest-ns>`
+- `kubectl --context "$CTX" logs <failing-pod> -n <dest-ns> --all-containers --tail=100`
 
 The signature table above works the same on pasted output.

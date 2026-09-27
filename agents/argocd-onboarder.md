@@ -42,13 +42,13 @@ directory, from nothing to an open PR.
    `charts/<app>/`. Pull upstream values, add only the minimal overrides needed
    for a first healthy deploy (resources, persistence, ingress off unless asked).
 5. Verify catalog: `helm dependency build charts/<app>` → `helm lint charts/<app>`
-   → (if cluster reachable) `helm template charts/<app> | kubectl apply
+   → (if cluster reachable) `helm template charts/<app> | kubectl --context "$CTX" apply
    --dry-run=client -f -`. All must pass; fix and re-run until they do.
 6. Deploy wiring: render `${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl` into
    `environments/<env>/apps/<app>.yaml`; create
    `environments/<env>/values/<app>.yaml` (comment-only). Use the dev/prod
    `targetRevision` rule from `argocd-repo-conventions`.
-7. Verify manifest: `kubectl apply --dry-run=client -f environments/<env>/apps/<app>.yaml`
+7. Verify manifest: `kubectl --context "$CTX" apply --dry-run=client -f environments/<env>/apps/<app>.yaml`
    (or YAML parse fallback).
 8. Update `.claude/CLAUDE.md`: catalog inventory row + deployment matrix cell.
 9. Commit in logical chunks (catalog, deploy wiring, docs), each with the

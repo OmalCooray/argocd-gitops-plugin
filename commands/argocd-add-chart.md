@@ -38,7 +38,7 @@ opening the PR, end with a summary.
    helm lint charts/<app>
    ```
    If a cluster is reachable also run
-   `helm template charts/<app> | kubectl apply --dry-run=client -f -`.
+   `helm template charts/<app> | kubectl --context "$CTX" apply --dry-run=client -f -`.
 6. Commit `charts/<app>/Chart.yaml`, `charts/<app>/values.yaml`,
    `charts/<app>/Chart.lock`. (Do not commit `charts/<app>/charts/*.tgz`.)
 7. Update `.claude/CLAUDE.md` catalog inventory table; commit that too.

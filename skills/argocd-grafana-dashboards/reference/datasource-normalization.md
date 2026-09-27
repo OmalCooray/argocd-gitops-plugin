@@ -78,7 +78,7 @@ A dashboard with **no** prometheus reference anywhere → the script exits non-z
   be told to watch all namespaces:
   `grafana.sidecar.dashboards.searchNamespace: ALL` (in the block above).
   kube-prometheus-stack often ships this defaulted to `ALL` already — verify with
-  `kubectl -n monitoring get deploy kube-prometheus-stack-grafana -o yaml | grep -A2 SEARCH`
+  `kubectl --context "$CTX" -n monitoring get deploy kube-prometheus-stack-grafana -o yaml | grep -A2 SEARCH`
   (or inspect the sidecar container's env). If it is not `ALL`, per-app
   ConfigMaps are silently ignored.
 - Each **data key** in the ConfigMap becomes one dashboard. Multi-key ConfigMaps

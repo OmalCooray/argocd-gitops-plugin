@@ -93,7 +93,7 @@ an app that emits nothing (Metabase, a bare MySQL) is a separate workflow
      # folder: <app>        # optional; defaults to the chart name
    ```
 4. Verify: `helm template <app> charts/<app>` renders the ConfigMap with the
-   dashboard as a data key; `... | kubectl apply --dry-run=server -f -` if a
+   dashboard as a data key; `... | kubectl --context "$CTX" apply --dry-run=server -f -` if a
    cluster is reachable; the rendered ConfigMap is < 1 MB.
 5. Bump `charts/<app>/Chart.yaml` `version`.
 

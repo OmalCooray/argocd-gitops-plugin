@@ -1,7 +1,7 @@
 ---
 name: argocd-bootstrap
 description: Generate or refresh bootstrap/install.sh for a GitOps repo — the one-time script that installs Argo CD on a cluster and applies the environment's root application.
-argument-hint: "[kube-context] [--context <name>]"
+argument-hint: "[kube-context | --context <name>]"
 ---
 
 You are generating `bootstrap/install.sh` for the Argo CD GitOps repo in the
@@ -31,7 +31,7 @@ silent background jobs or polling loops.
    - Pick the latest stable. Record it.
 3. If the repo has more than one environment, ask the user which environment this
    bootstrap targets (default: the only one, or the one the `$ARGUMENTS`
-   kube-context maps to). `$ARGUMENTS` holds an optional kube-context.
+   kube-context maps to). `$ARGUMENTS` holds an optional kube-context, given positionally or as `--context <name>` (both mean the same thing).
 4. Render `${CLAUDE_PLUGIN_ROOT}/templates/install.sh.tmpl` with these variables:
    `ARGOCD_NAMESPACE`, `ARGOCD_CHART_VERSION`, `ENV_NAME`, `GITOPS_REPO_URL`.
 5. Write it to `bootstrap/install.sh`, `chmod +x` it. Show the rendered script.
@@ -39,7 +39,7 @@ silent background jobs or polling loops.
    installs Argo CD (~3 min) and applies the root app.` Wait for yes.
 7. On yes, run it **in the foreground** so its output (helm progress, CRD wait,
    root-app apply) streams into the conversation. Do not background it. When it
-   returns, run `kubectl get applications -n $ARGOCD_NS` once and show the
+   returns, run `kubectl --context "$CTX" get applications -n $ARGOCD_NS` once and show the
    result. On no, just print the command for them to run later.
 
 ## Output

@@ -101,7 +101,7 @@ is global) but compute names from the wrong (wrapper) context/values.
    charts/<app>` if there is no `Chart.lock` yet) →
    `helm template <app> charts/<app>` renders your manifest. If a cluster with
    the CRD is reachable:
-   `helm template <app> charts/<app> | kubectl apply --dry-run=server -f -`.
+   `helm template <app> charts/<app> | kubectl --context "$CTX" apply --dry-run=server -f -`.
 6. Bump `charts/<app>/Chart.yaml` `version`.
 
 ## References
