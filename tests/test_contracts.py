@@ -401,3 +401,33 @@ def test_bootstrap_documents_env_flag_and_existing_secret_url_check():
 def test_target_resolution_probe_prints_nothing_on_success():
     t = read("references/target-resolution.md")
     assert "On success print nothing" in t and "exactly ONE plain line" in t
+
+
+def test_doctor_and_troubleshooting_cover_live_findings():
+    d = read("commands/argocd-doctor.md")
+    s = read("skills/argocd-troubleshooting/SKILL.md")
+    for needle in ("healthy — nothing to fix", "not found", "inspected:", "<chart>.image.tag", "Progressing", "--tail=5"):
+        assert needle in d + s, needle
+    for needle in ("field is immutable", "x509", "Exit Code", "Running but not Ready"):
+        assert needle in s, needle
+    assert 'image.tag "v0.61.1.x"' not in d
+
+
+def test_doctor_healthy_branch_precedes_drilldown_and_fix_flow_is_explicit():
+    d = read("commands/argocd-doctor.md")
+    assert d.index("healthy — nothing to fix") < d.index("walk `status.resources[]`")
+    assert d.index("**Unknown app.**") < d.index("walk `status.resources[]`")
+    assert "[--fix]" in d.split("---")[1]
+    for needle in ("About to push fix/", "git switch -c fix/", "helm template <app> charts/<app> -n",
+                   "no-remote-fallback.md", "helm dependency build", "declared but not live"):
+        assert needle in d, needle
+    assert "the way `/argocd-deploy` does" not in d
+
+
+def test_troubleshooting_has_new_signature_rows_and_defers_force_to_rollout():
+    s = read("skills/argocd-troubleshooting/SKILL.md")
+    for needle in ("field is immutable", "x509: cannot validate certificate", "Exit Code",
+                   "progressDeadlineSeconds", "argocd-rollout", "status.resources[].health"):
+        assert needle in s, needle
+    assert '"force":true' not in s
+    assert '{"operation":null}' in s

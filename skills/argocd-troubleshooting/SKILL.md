@@ -26,7 +26,9 @@ Read, in this order:
   waiting on? `"waiting for healthy state of <kind>/<name>"` names the blocker.
 - `status.conditions[]` — `ComparisonError`, `SyncError`, `OrphanedResourceWarning`
 - `status.resources[]` — per-object `status` and `health`; find the ones that are
-  not `Synced` / not `Healthy`.
+  not `Synced` / not `Healthy`. On recent Argo CD the entries often have `status` but no
+  `health`: when `status.resources[].health` is empty, fall back to pod/Event state
+  (`kubectl --context "$CTX" -n <dest-ns> get pods`, then `describe`).
 
 **Progressing vs stuck:** compare `status.operationState.startedAt` to now. Under
 ~2 min with pods pulling images or running init containers = progressing, leave
@@ -57,7 +59,7 @@ kubectl --context "$CTX" -n <dest-ns> logs <pod> --previous --tail=50           
 
 | What you see | Likely cause | Fix |
 |---|---|---|
-| Pod `ImagePullBackOff` / `ErrImagePull`; long `Pulling` that never succeeds | image tag does not exist (often a chart `appVersion` placeholder like `x.y.z.x` or `latest` with no such tag) or private registry with no `imagePullSecrets` | pin a real `image.tag` in values; add `imagePullSecrets` |
+| Pod `ImagePullBackOff` / `ErrImagePull`; long `Pulling` that never succeeds | image tag does not exist (often a chart `appVersion` placeholder like `x.y.z.x` or `latest` with no such tag) or private registry with no `imagePullSecrets` | pin a real `<chart>.image.tag` in values (wrapper charts nest every key under the dependency name; a bare `image.tag` does nothing); add `imagePullSecrets` |
 | Pod `CreateContainerConfigError`; event `secret "X" not found` / `configmap "X" not found` | the manifest references a Secret/ConfigMap that isn't in the namespace (out-of-band secret missing, or a `*SecretName` value pointing at nothing) | create the Secret, or fix the values key to the real name |
 | Every workload's init container `CrashLoopBackOff` on "waiting for migrations"/"waiting for db" | the DB-migration Job is a **Helm hook** and Argo CD didn't run it, or the DB is unreachable | `useHelmHooks: false` on the chart's job(s); check the DB Service/pod |
 | App `OutOfSync` forever on a `Job`; diff shows a `controller-uid` selector | K8s mutated the started Job's selector; the rendered manifest can't match | annotate the Job `argocd.argoproj.io/hook: Sync` + `hook-delete-policy: BeforeHookCreation` |
@@ -70,6 +72,21 @@ kubectl --context "$CTX" -n <dest-ns> logs <pod> --previous --tail=50           
 | Sync error `SchemaError` / `spec.X: Invalid value` | bad values produced an invalid manifest | `helm template` locally with the same values and read the offending object |
 | App `Missing`, no resources | root app not synced, or `path`/`targetRevision` wrong | check the Application `spec.source(s)`; `argocd-audit` |
 | Hook Job `PostSync` never runs; components never healthy | deadlock — components wait on a hook that only runs after they're healthy | make the job a `Sync` (not `PostSync`) hook, or a plain resource |
+| Sync fails `Deployment.apps "X" is invalid: spec.selector: … field is immutable` | a values/chart change altered the Deployment's selector labels; K8s forbids it | revert the label change in git; or, if intended, add `Replace=true` to the Application's `syncOptions` in git (one-time) — never delete the workload by hand |
+| Pod `Running` but `0/1` Ready, readiness 500, logs show `x509: cannot validate certificate for <ip> because it doesn't contain any IP SANs` (kind / Docker Desktop kubelet certs) | metrics-server (or another kubelet client) cannot verify self-signed kubelet certs on a local cluster | in the **env overlay only**: `metrics-server.args: [--kubelet-insecure-tls]` (see `values-review/reference/chart-notes.md`); never in the shared catalog values |
+| Pod `CrashLoopBackOff`, `describe` → `Exit Code` ≠ 0 (2 = bad CLI usage), no init container involved | the app rejects its own flags/config — usually a bad `extraArgs`/`command`/env value | read `kubectl --context "$CTX" -n <dest-ns> logs <pod> --previous --tail=5` (the error is on the last lines); fix the offending key in values |
+
+**Running but not Ready** does not match the `CrashLoopBackOff`/`ImagePullBackOff` stuck
+signatures — look at readiness events and `logs --tail=5` for any pod that stays `0/1` for
+more than ~90 s (an unavailable APIService such as `v1beta1.metrics.k8s.io` reporting
+`Available=False (MissingEndpoints)` is the matching symptom for metrics-server).
+
+An app with a bad rollout stays `Progressing` — not `Degraded` — until the Deployment's
+600 s `progressDeadlineSeconds` expires; pod signatures, not the Argo health colour, are the
+stuck test.
+
+Use `--tail=5 --previous` for logs (the real error is on the last lines); if the tail is a
+usage/`--help` dump, `grep -m3 -iE 'error|invalid|fatal'` instead of dumping 50 lines.
 
 ## Step 4 — confirm the fix in git, not the cluster
 
@@ -82,11 +99,11 @@ reverts it and the drift hides the real problem.
 ```bash
 # usually enough for an app with syncPolicy.automated:
 kubectl --context "$CTX" -n "$ARGOCD_NS" annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
-
-# force an explicit sync (only behind a checkpoint; omitting revision uses each source's targetRevision):
-kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p \
-  '{"operation":{"initiatedBy":{"username":"troubleshooting"},"sync":{"syncStrategy":{"apply":{"force":true}}}}}'
 ```
+
+If a refresh is not enough, use the escalation ladder in `argocd-rollout` step 1 (refresh →
+plain sync → force only after an immutable-field/selector failure, behind a second
+checkpoint). Do not force-sync directly from here.
 
 ### Clearing a deadlocked sync
 
@@ -102,7 +119,7 @@ needs to fix.
 kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p '{"operation":null}'
 kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
 kubectl --context "$CTX" -n "$ARGOCD_NS" annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
-# if automated sync doesn't re-trigger within ~30s, force it with the patch above
+# if automated sync doesn't re-trigger within ~30s, use the escalation ladder in `argocd-rollout` step 1
 ```
 
 The only direct cluster actions troubleshooting ever takes: trigger/clear a sync,
