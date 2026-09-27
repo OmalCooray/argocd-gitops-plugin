@@ -14,7 +14,7 @@ the target before the first cluster command.
 4. If the user did **not** name a context, checkpoint (one line, wait for yes):
    `> About to act on kube-context "<CTX>" (your current context). Proceed?`
 5. Probe reachability once: `kubectl --context "<CTX>" cluster-info --request-timeout=5s`.
-   On failure print ONE plain line — `Cluster "<CTX>" is not reachable: start it or pass --context <name>` — and stop
+   On success print nothing (do not paste the cluster-info output). On failure print exactly ONE plain line — `Cluster "<CTX>" is not reachable: start it or pass --context <name>` — and stop
    (or switch to the command's offline mode if it has one). Do not paste the raw
    multi-line connection error.
 6. Every later cluster command carries `--context "<CTX>"`; `helm install|upgrade|list`

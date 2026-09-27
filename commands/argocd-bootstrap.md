@@ -1,7 +1,7 @@
 ---
 name: argocd-bootstrap
 description: Generate or refresh bootstrap/install.sh for a GitOps repo — the one-time script that installs Argo CD on a cluster and applies the environment's root application.
-argument-hint: "[kube-context | --context <name>]"
+argument-hint: "[kube-context | --context <name>] [--env <environment>]"
 ---
 
 You are generating `bootstrap/install.sh` for the Argo CD GitOps repo in the
@@ -14,7 +14,7 @@ silent background jobs or polling loops.
 
 ## Preconditions
 
-0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument. `$1` is a kube-context (or `--context <name>`); the environment is chosen with `--env <name>` (default: the repo's only environment, else ask).
 - CWD is a GitOps repo created by `/argocd-init-repo` (has `environments/<env>/`
   and `.claude/CLAUDE.md`). If not, tell the user to run `/argocd-init-repo` first.
 - Read `.claude/CLAUDE.md` for: Argo CD namespace, environment name(s), GitOps
@@ -34,8 +34,7 @@ silent background jobs or polling loops.
    - If `helm` is unavailable, query ArtifactHub
      (`/packages/helm/argo/argo-cd`) via WebFetch and pick the latest stable.
 3. If the repo has more than one environment, ask the user which environment this
-   bootstrap targets (default: the only one, or the one the `$ARGUMENTS`
-   kube-context maps to). `$ARGUMENTS` holds an optional kube-context, given positionally or as `--context <name>` (both mean the same thing).
+   bootstrap targets, unless `--env <name>` was given (default: the only one). `$ARGUMENTS` holds an optional kube-context, given positionally or as `--context <name>` (both mean the same thing); it is never the environment.
 4. Render `${CLAUDE_PLUGIN_ROOT}/templates/install.sh.tmpl` with the renderer script,
    reading the values from `.claude/CLAUDE.md` (labels `Argo CD namespace`,
    `GitOps repo URL`; the environment from step 3; the chart version from step 2):
@@ -50,7 +49,7 @@ silent background jobs or polling loops.
    git update-index --chmod=+x bootstrap/install.sh
    git commit -m "chore(bootstrap): pin Argo CD chart and render install.sh"
    ```
-   (Add the Co-Authored-By trailer.) Nothing is pushed yet; the push/PR happens once,
+   (Add the Co-Authored-By trailer.) There is ONE `bootstrap/install.sh` per repo: bootstrapping another environment re-renders it for that environment (only `ENV_NAME` and the header comment change), so commit it on the same `bootstrap/install-<env>` branch flow and expect that diff. Nothing is pushed yet; the push/PR happens once,
    in step 10.
 6. **Checkpoint:** `> Run ./bootstrap/install.sh against context "$CTX" now? It
    installs Argo CD (~3 min) and applies the root app.` Wait for yes.
@@ -59,7 +58,9 @@ silent background jobs or polling loops.
    `install.sh` printed how to open the UI and get the admin password; repeat
    those lines if the output scrolled. For a private repo the root app was applied
    before Argo CD had a credential, so `root-<env>` showing a ComparisonError
-   ("repository not accessible") here is expected; step 8 fixes it. On no, just
+   `failed to list refs: error creating SSH agent: "SSH agent requested but SSH_AUTH_SOCK not-specified"` (ssh URL, no credential yet) or
+   `authentication required: Repository not found` (https URL on a private repo): either of these (Sync status Unknown) on `root-<env>` right after `install.sh` is expected until the credential exists; step 8 fixes it.
+   The credential step runs after `install.sh` because the Argo CD namespace and CRDs do not exist before it, so a brief Unknown state on the root is normal. On no, just
    print the command for them to run later and skip steps 8-9.
 8. **Private-repo access** (only after `install.sh` finished).
    - Derive `OWNER` and `NAME` from the recorded `GitOps repo URL`: strip a trailing
@@ -80,7 +81,9 @@ silent background jobs or polling loops.
      unknown, so ask the user.
    - If Secret `repo-$NAME` already exists
      (`kubectl --context "$CTX" -n "$ARGOCD_NS" get secret "repo-$NAME" --ignore-not-found`),
-     say so and skip the credential creation (idempotent re-run); still do the
+     say that a Secret named `repo-$NAME` already exists for this repo in this cluster, so no new deploy key is created, and skip the credential creation (idempotent re-run). Verify it points at the recorded URL by printing ONLY the url value:
+     `kubectl --context "$CTX" -n "$ARGOCD_NS" get secret "repo-$NAME" -o jsonpath='{.data.url}' | base64 -d`
+     (the url is not sensitive, the key is; NEVER read `.data.sshPrivateKey`). If it differs from the recorded `GITOPS_REPO_URL`, stop and tell the user; do not overwrite silently. Otherwise still do the
      https-to-ssh check below.
    - The recorded URL must be the SSH form `git@github.com:$OWNER/$NAME.git`. If it is
      https, the Secret (keyed to the SSH URL) would never match. Propose this exact
@@ -105,6 +108,7 @@ silent background jobs or polling loops.
      kubectl --context "$CTX" -n "$ARGOCD_NS" label secret "repo-$NAME" argocd.argoproj.io/secret-type=repository
      shred -u "$KEY" 2>/dev/null || rm -f "$KEY"; rm -f "$KEY.pub"; rmdir "$(dirname "$KEY")"
      ```
+   - Verify the key is read-only: `gh repo deploy-key list -R "$OWNER/$NAME" --json title,read_only` shows `read_only: true` for the new title.
    - On ANY failure after `ssh-keygen`: delete `$KEY*` and its temp dir, report the ONE
      error line, and stop. If the GitHub key was already added but the Secret creation
      failed, name the key title `argocd-readonly-<ctx>` to remove in the repo's

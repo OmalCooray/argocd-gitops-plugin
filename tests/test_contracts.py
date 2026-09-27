@@ -362,17 +362,19 @@ def test_bootstrap_step8_never_reads_secret_data_or_traces():
     s = _bootstrap_step8(read("commands/argocd-bootstrap.md"))
     for bad in ("-o yaml", "describe secret", "set -x"):
         assert bad not in s, bad
-    assert not re.search(r"get secret[^\n]*-o", s)
+    assert not re.search(r"get secret[^\n]*-o (?!jsonpath='\{\.data\.url\}')", s)
 
 
 def test_bootstrap_private_repo_wording_and_rewrite():
     b = read("commands/argocd-bootstrap.md")
     for needle in ('kubectl --context "$CTX" apply -n "$ARGOCD_NS" -f environments/<env>/root.yaml',
                    "ref: values", "both sources", "READ-ONLY deploy key", "create Secret",
-                   "repository not accessible", ".status.conditions[*].message",
+                   "SSH agent requested but SSH_AUTH_SOCK not-specified",
+                   "authentication required: Repository not found", ".status.conditions[*].message",
                    "json.load(sys.stdin)"):
         assert needle in b, needle
     assert "head -5" not in b
+    assert "repository not accessible" not in b
     assert "deploy key or credential Secret" in read("references/interaction-style.md")
 
 
@@ -384,3 +386,18 @@ def test_bootstrap_never_prints_the_private_key():
 
 def test_bootstrap_marks_install_script_executable():
     assert "--chmod=+x" in read("commands/argocd-bootstrap.md")
+
+
+def test_bootstrap_documents_env_flag_and_existing_secret_url_check():
+    b = read("commands/argocd-bootstrap.md")
+    head = b.split("---", 2)[1]
+    assert "[--env <environment>]" in head
+    assert "environment is chosen with `--env <name>`" in b
+    assert "{.data.url}" in b and "base64 -d" in b and "NEVER read `.data.sshPrivateKey`" in b
+    assert "read_only" in b and "readOnly" not in b
+    assert "ONE `bootstrap/install.sh` per repo" in b
+
+
+def test_target_resolution_probe_prints_nothing_on_success():
+    t = read("references/target-resolution.md")
+    assert "On success print nothing" in t and "exactly ONE plain line" in t
