@@ -40,38 +40,49 @@ a summary. This command is read-only, so no checkpoints are needed.
    **`status.sync.revisions[]`** (multi-source apps; `status.sync.revision` is null for them, so use it only
    for single-source apps), and the tracking-id annotation `argocd.argoproj.io/tracking-id` prefix (with
    `trackingMethod=label` the same information is in the `app.kubernetes.io/instance` label; read whichever is present).
-   Classify each live app: audited env's declared app or root, **belongs to <env>** (declared in another env's
-   `apps/*.yaml`, or another env's root app), or neither (candidate orphan). Apps that belong to another env are
-   listed on one informational line (`belongs to <env>: <names>`), are NOT counted as orphaned or drifted here,
-   and are excluded from `<m> live`; print how many were excluded.
+   Classify each live app, checking the source repo first. Take `REPO_URL` (`GitOps repo URL`) from
+   `.claude/CLAUDE.md`. Normalize both sides before comparing: strip a trailing `.git`, and treat
+   `https://github.com/<o>/<n>` and `git@github.com:<o>/<n>.git` as the same repo.
+   - An app whose `spec.sources[].repoURL` (or `spec.source.repoURL`) is not this repo is **belongs to another
+     repo**: list it on the informational line `belongs to another repo: <names> (repo <url>)`. Exclude it from
+     `<m>`, orphans, unmanaged and drift counts (print how many were excluded), and never offer to delete it: on
+     a shared Argo CD it may be another team's root app. Do not `git ls-remote` any repo other than `REPO_URL`.
+   - Otherwise (this repo): the audited env's declared app or root; **belongs to <env>** (declared in another
+     env's `apps/*.yaml` of this repo, or another env's root app), listed on one line (`belongs to <env>: <names>`),
+     not counted as orphaned or drifted here and excluded from `<m>` (print how many); or neither, a candidate
+     orphan (undeclared in any env).
 3. Compare revisions **per source**: `status.sync.revisions[i]` corresponds to `spec.sources[i]`. Resolve each
    source's `targetRevision` with the per-source comparison rules in `${CLAUDE_PLUGIN_ROOT}/commands/argocd-sync.md` step 3
-   (branch/HEAD via `git ls-remote`, tag peeled, 40-hex SHA direct, Helm-repo chart version). `git ls-remote` is
-   not a cluster command, so it runs locally even in offline mode. On a mismatch report "behind HEAD" for a git
-   source and "chart version differs" for a Helm-repo source. If `ls-remote` fails, report
+   (branch/HEAD via `git ls-remote`, tag peeled, 40-hex SHA direct, Helm-repo chart version). Always run it as
+   `GIT_TERMINAL_PROMPT=0 timeout 20 git ls-remote <repo-url> <ref>` (a private repo would otherwise prompt for
+   credentials and hang). It is not a cluster command, so it runs locally even in offline mode. Only query `REPO_URL`. On a mismatch report "behind HEAD" for a git
+   source and "chart version differs" for a Helm-repo source. If `ls-remote` exits non-zero, say so and report
    "unknown (could not reach the repo)" for that source and never flag drift on unknown.
    Also compare `spec.sources[].targetRevision`/`path` against the repo's manifest, source by source.
 4. Report these tables (omit an empty one, but always print the summary):
    - **Missing in cluster**: declared apps (not the root) that are not live. Print a separate line
      `root app: LIVE|MISSING`. If the root app is MISSING, every declared app is Missing and the cause is
-     "root app never applied — run `/argocd-bootstrap`"; otherwise "root app has not synced yet — refresh `root-<env>`".
+     "root app not live (deleted or never applied) — run /argocd-bootstrap"; otherwise "root app has not synced yet — refresh `root-<env>`".
      A missing root is reported on the `root app:` line and is NOT included in `<a>`.
-   - **Orphaned in cluster**: live, not declared in **any** `environments/*/apps/*.yaml`, and not any env's root app.
+   - **Orphaned in cluster**: live, sourced from this repo, not declared in **any** `environments/*/apps/*.yaml`, and not any env's root app. Orphans appear only in this table; they do not enter Managed-by or the unmanaged count.
    - **Managed by**: for every live app of this env, who manages it:
      (a) tracking-id prefix equals this env's root app name: `managed by root-<env>`;
      (b) prefix names another live app or another env's root: `managed by <x>, not this env's root`, counted as unmanaged;
      (c) tracking-id absent, empty or unparseable: `manually applied / unknown` (add "(kubectl apply)" when the
-     `kubectl.kubernetes.io/last-applied-configuration` annotation exists), counted as unmanaged.
+     `kubectl.kubernetes.io/last-applied-configuration` annotation exists), counted as unmanaged;
+     (d) prefix names an app that is not live (e.g. `root-local` when `root-local` was deleted):
+     `tracked by <prefix> (not live) — nothing reconciles or prunes it`, counted as unmanaged.
      The root app itself (`role=root`) is exempt from the Managed-by test and from the unmanaged count; list it as
      `root (bootstrap)`. Every counted app is **unmanaged by GitOps**: say so.
    - **Drift / unhealthy**: `<c> drifted` = sync status is not `Synced`, OR behind HEAD / chart version differs,
      OR a source differs from the repo. `<d> unhealthy` = health is not `Healthy`. An app can count in both.
 5. For each row give the one-line likely cause and the corrective action ("merge PR #NN", "refresh root-<env>",
-   "run `/argocd-bootstrap`"). For an orphan: either declare it (`/argocd-deploy`) or delete the live Application
-   deliberately — that removes its workloads via the finalizer; audit never does either.
+   "run `/argocd-bootstrap`"). For a true orphan (this repo, undeclared) only: either declare it (`/argocd-deploy`) or delete the live
+   Application deliberately — that removes its workloads via the finalizer; audit never does either.
+   For an app that belongs to another repo or env: no action, informational only.
    Never run `argocd app sync` for an app that is missing.
 6. Print: `<n> declared (+root), <m> live, <a> missing, <b> orphaned, <c> drifted, <d> unhealthy, <u> unmanaged, <k> unknown`.
-   `<m>` counts every live app this env's audit covers, including the root, and excludes apps that belong to other envs.
+   `<m>` counts every live app this env's audit covers, including the root and true orphans, and excludes apps of other repos and of other envs.
    `<k>` counts sources whose comparison could not be made. Print
    `No drift: everything declared is live, in sync and healthy.` ONLY when every count is 0 (in particular unknown is 0);
    if `<k>` is not 0, print the summary line with the unknown count and say to check repo access.

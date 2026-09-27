@@ -75,7 +75,7 @@ silent background jobs or polling loops.
    - Detect visibility: `gh repo view "$OWNER/$NAME" --json visibility -q .visibility`.
      `PRIVATE` and `INTERNAL` count as private; `PUBLIC` skips to step 9. If `gh`
      cannot answer, probe anonymously:
-     `GIT_TERMINAL_PROMPT=0 git ls-remote https://github.com/"$OWNER"/"$NAME".git HEAD`.
+     `GIT_TERMINAL_PROMPT=0 timeout 20 git ls-remote https://github.com/"$OWNER"/"$NAME".git HEAD`.
      Only an authentication failure (exit 128 with "Authentication failed",
      "could not read Username" or "not found") means private; a network error means
      unknown, so ask the user.

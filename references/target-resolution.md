@@ -13,10 +13,15 @@ the target before the first cluster command.
 3. Print exactly one line: `Target: context=<CTX>  argocd-ns=<ARGOCD_NS>  repo=<REPO_URL>`.
 4. If the user did **not** name a context, checkpoint (one line, wait for yes):
    `> About to act on kube-context "<CTX>" (your current context). Proceed?`
+   If the user answers by choosing a different context, set `CTX` to it, re-print the
+   `Target:` line with the new context, and re-run the step-5 probe before continuing.
 5. Probe reachability once: `kubectl --context "<CTX>" cluster-info --request-timeout=5s`.
-   On success print nothing (do not paste the cluster-info output). On failure print exactly ONE plain line — `Cluster "<CTX>" is not reachable: start it or pass --context <name>` — and stop
-   (or switch to the command's offline mode if it has one). Do not paste the raw
-   multi-line connection error.
+   On success print nothing (do not paste the cluster-info output). On failure print exactly ONE plain line, then
+   stop (or switch to the command's offline mode if it has one):
+   - if `kubectl config get-contexts -o name` does not list `<CTX>`:
+     `kube-context "<CTX>" not found in kubeconfig (list them: kubectl config get-contexts)`;
+   - otherwise (it exists but is unreachable): `Cluster "<CTX>" is not reachable: start it or pass --context <name>`.
+   Do not paste the raw multi-line connection error.
 6. Every later cluster command carries `--context "<CTX>"`; `helm install|upgrade|list`
    carry `--kube-context "<CTX>"`. Local-only helm (`template|lint|show|dependency|search|repo`)
    needs neither. Never `kubectl config use-context`.

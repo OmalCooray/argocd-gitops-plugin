@@ -44,10 +44,10 @@ a fix PR or clearing a sync, no open-ended polling.
    `status.sync.revision`. Multi-source app: `status.sync.revisions[i]` corresponds to `spec.sources[i]`.
    For a **git** source (this plugin's wrapper-chart apps: the `charts/<app>` source and the `ref: values`
    source both point at the GitOps git repo) compare the revision to the tracked ref: branch/`HEAD` →
-   `git ls-remote <repoURL> <targetRevision>` (first column); tag → use the peeled line
+   `GIT_TERMINAL_PROMPT=0 timeout 20 git ls-remote <repoURL> <targetRevision>` (first column); tag → use the peeled line
    (`refs/tags/<t>^{}`) if present; a 40-hex SHA `targetRevision` → compare directly (no ls-remote).
    For a **Helm-repo** source compare `revisions[i]` to its `targetRevision` chart version.
-   If `ls-remote` fails (private repo without credentials, no network), say so and treat the comparison
+   If `ls-remote` fails or exits non-zero (the guard stops a private repo from prompting and hanging) (private repo without credentials, no network), say so and treat the comparison
    as unknown: do NOT take the nothing-to-do exit, continue to step 4.
    If every source matches, print `<app>: already Synced/Healthy at <sha> — nothing to do` and jump to
    step 5 (functional check). Do **not** trigger anything.

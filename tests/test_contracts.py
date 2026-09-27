@@ -73,7 +73,8 @@ def bare_kubectl_segments(line):
 
 def test_target_resolution_reference_exists_and_is_complete():
     t = read("references/target-resolution.md")
-    for needle in ("Target: context=", "--context", "cluster-info", "Proceed?", ".claude/CLAUDE.md"):
+    for needle in ("Target: context=", "--context", "cluster-info", "Proceed?", ".claude/CLAUDE.md",
+                   "not found in kubeconfig", "re-print"):
         assert needle in t, needle
 
 
@@ -179,7 +180,7 @@ def test_audit_steps_are_ordered_and_safe():
     assert "Never run `argocd app sync` for an app that is missing" in a
     assert "${CLAUDE_PLUGIN_ROOT}/commands/argocd-sync.md" in steps
     assert "unknown (could not reach the repo)" in steps
-    assert "root app never applied" in steps and "/argocd-bootstrap" in steps
+    assert "root app not live (deleted or never applied)" in steps and "/argocd-bootstrap" in steps
     assert "kubectl apply" in steps and "unmanaged by GitOps" in steps
 
 
@@ -692,3 +693,31 @@ def test_readme_limitations_prereqs_and_command_hints():
         m = re.search(r'^argument-hint:\s*"(.*)"\s*$', f.read_text(encoding="utf-8"), re.M)
         assert m, f.name
         assert m.group(1) in r, (f.name, m.group(1))
+
+
+GUARD = "GIT_TERMINAL_PROMPT=0 timeout 20 git ls-remote"
+
+
+def test_audit_other_repo_apps_are_not_orphans_and_ls_remote_is_bounded():
+    a = read("commands/argocd-audit.md")
+    for needle in ("belongs to another repo", "strip a trailing", "never offer to delete",
+                   "tracked by", "(not live)", GUARD, "root app not live (deleted or never applied)"):
+        assert needle in a, needle
+    step5 = a.split("5. For each row", 1)[1].split("6. Print", 1)[0]
+    assert "true orphan" in step5 and "delete" in step5
+    assert "other repos" in a or "other than `REPO_URL`" in a
+
+
+def test_sync_ls_remote_is_bounded():
+    sync = read("commands/argocd-sync.md")
+    assert GUARD in sync
+
+
+def test_every_ls_remote_call_is_guarded():
+    import subprocess
+    out = subprocess.run(["git", "grep", "-n", "git ls-remote", "--", "commands", "skills", "agents", "references"],
+                         cwd=ROOT, capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        # a call has an argument after ls-remote; prose mentions the guarded form or none
+        if re.search(r"git ls-remote\s+(<|https?:|\$|\S+/)", line):
+            assert GUARD in line, line
