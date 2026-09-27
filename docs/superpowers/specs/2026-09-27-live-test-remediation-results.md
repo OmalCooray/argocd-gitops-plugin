@@ -1,0 +1,20 @@
+# Live-Test Remediation: Results
+
+Verification of every finding (F1-F12, see `docs/superpowers/plans/2026-09-27-live-test-remediation.md`) against the final plugin, run 2026-09-26/27 as a first-time user. Commands were emulated by agents that read each command file and follow it literally; cluster and Grafana behaviour is real. Environment: kind v0.33 (Kubernetes 1.34) with Argo CD chart 10.9.2 (v3.5.3), a real public and a real private GitHub repo, real Grafana/Prometheus (kube-prometheus-stack 91.7.0). The user's own cluster was only ever read (`get`), never written.
+
+| Finding | Scenario | Result | Evidence |
+|---|---|---|---|
+| F1 audit | audit on the live env, on a nonexistent env, and read-only on a real cluster with a deleted root | PASS, plus 2 more fixes found and made | Root app listed as `root (bootstrap)`; unknown env stops before any cluster call; on a shared Argo CD other repos' apps were reported as orphans (fixed: "belongs to another repo", never offer to delete); apps tracked by a missing root now "tracked by root-local (not live)" |
+| F2 sync | sync on a Synced/Healthy app; sync during a crash loop | PASS | Healthy: "nothing to do", history/generation/resourceVersion/restarts identical before and after. Crash loop: refresh + bounded probes, no force patch issued |
+| F3 context | no `--context` with a real cluster current; nonexistent context; cold onboarder | PASS, plus 1 fix | `Target:` line + checkpoint before any cluster command; one-line unreachable/not-found messages; onboarder had a hole (a local-looking real cluster was auto-selected) - fixed: no cluster command without explicit `--context` |
+| F4 add-manifest | cluster-admin to `system:authenticated` (+ "do it anyway"), to `system:masters`, wildcard role under another name, benign namespaced Role, CRD provider scan | PASS | Three refused with no override; benign Role not treated as privileged; `list_crds.sh` found the CRD in both providers, sync-wave rule evaluated on real files |
+| F5 dashboards | dashboard 10826 imported through the flow, verified in Grafana; bad id | PASS | Variables use `${datasource}` (no dead uid); labels detected and relabelled; `count(go_goroutines{namespace="podinfo"})` = 2 while the old `kubernetes_namespace` label returns nothing; folder `podinfo`; failed fetch leaves no file |
+| F6 init-repo / private repo | private repo end to end; https to ssh rewrite path | PASS | Deploy key (read-only), repository Secret, root Synced in ~16 s; rewrite re-applied the live root; no author default; `install.sh` mode 100755 |
+| F7 bootstrap | `install.sh` with no argument / invalid context | PASS | Usage error before any cluster call; context validated against kubeconfig |
+| F8 doctor | real crash loop, `--fix`, healthy, unknown | PASS | Exit Code 2 row, `logs --previous` tail + grep fallback, fix at `podinfo.extraArgs`; `--fix` PR merged; Healthy 25 s after the fix; healthy line afterwards |
+| F9 onboarder | cold runs: missing inputs, existing chart, dirty tree, no remote, `--yes` | PASS, plus fixes | Local-only when no context; draft PR + hand-off; CRD-provider handling and cert-manager notes added |
+| F10 chart notes | CRD detection on prometheus-operator-crds and kube-prometheus-stack; metrics-server args; Grafana folder | PASS | 10 CRD names for each; `--include-crds` needed (0 vs 10); args appended after chart defaults |
+| F11 review-values | real state; own-app chart | PASS | `nothing to harden` no-op path; own-app path with top-level keys; user's Helm repo list and tree unchanged; `helm dependency build` failing without a repo list found and fixed (`helm_deps.sh`) |
+| F12 hygiene | fallback, license, marketplace | PASS (static) | Fallback referenced by every push step; MIT LICENSE; marketplace `source: "."` per the official reference |
+
+Not exercised live: `claude plugin validate` and a real `/plugin install` from a clean machine (Claude Code cannot be launched from inside a session), the real slash-command loader and skill auto-triggering, the gh-missing and ssh-keygen-missing paths, non-GitHub hosts, key rotation.

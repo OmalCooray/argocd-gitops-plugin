@@ -40,6 +40,11 @@ Live-test remediation: fixes for every defect found by running the plugin as a f
 - `/argocd-init-repo`: no author-derived owner default, explicit visibility, renderer script for templates (F6).
 - `helm dependency build` failing with "no repository definition" when the user has no matching Helm repo list: `helm_deps.sh` and `render_chart.sh` use a private temporary repo list (F11).
 - Bootstrap: broken-pipe noise, missing UI/password hints, unexplained finalizer warning (F7).
+- Found by the final live re-verification and fixed before release:
+  - `/argocd-audit` no longer reports apps that belong to another repository as orphans (and never offers to delete them); apps tracked by a root app that is not live are reported as unmanaged (F1).
+  - `argocd-onboarder` never runs any cluster command without an explicit `--context`, including when the current context is a local-looking one such as `docker-desktop` (F3, F9); it now detects CRD providers, marks them and adds sync-wave `-1`, and checks chart CRD toggles (cert-manager notes added) (F10).
+  - `install.sh` rejects a context that is not in the kubeconfig (F6); `git ls-remote` calls are bounded and never prompt for credentials (F1, F2).
+  - Re-runs no longer fail on a leftover merged branch (shared "branch-exists" rule); `/argocd-add-manifest` classifies privileged requests before creating a branch and handles an already-present template (F4).
 
 ### Removed
 - The optional Argo CD MCP integration: `.mcp.json.example`, its README section, the "use `mcp__argocd__*` if present" instructions in `argocd-audit`, `argocd-doctor`, `argocd-sync`, and `argocd-onboarder`; `test_plugin_is_shell_only_no_mcp` guards against it returning.
