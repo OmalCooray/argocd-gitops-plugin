@@ -14,7 +14,7 @@
         "name": "Omal Cooray",
         "email": "omalcooray9@gmail.com"
       },
-      "source": "./",
+      "source": ".",
       "category": "development",
       "keywords": ["argocd", "gitops", "helm", "kubernetes", "app-of-apps"]
     }
