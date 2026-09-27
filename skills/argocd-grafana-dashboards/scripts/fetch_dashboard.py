@@ -15,13 +15,19 @@ is left behind; the directory must already exist). Exits 1 with a stderr
 message on fetch failure, invalid JSON, or a dashboard with no Prometheus
 datasource; exits 2 with this usage on bad arguments.
 
-  --relabel OLD=NEW  rename label OLD to NEW in every "expr" / "query" /
-                     "definition" string (whole identifiers only); repeatable
-  --labels           print, as a JSON list, the label names the dashboard's
-                     queries use (inside {...} matchers and label_values())
-                     instead of the dashboard; --out is ignored. Limitation:
-                     label names in string literals outside {...}, such as
-                     label_replace(x, "dst", ...), are not reported.
+  --relabel OLD=NEW  rename label OLD to NEW (whole identifiers only);
+                     repeatable
+  --labels           print, as a JSON list, the label names the dashboard uses
+                     instead of the dashboard; --out is ignored
+
+--labels and --relabel share one scanner, so they cover exactly the same
+positions in every expr / query / definition string (string literals are
+masked first, so string values are never touched): matchers inside {...};
+by / without / on / ignoring / group_left / group_right (...) lists; the last
+argument of label_values(<metric>, <label>). In legendFormat strings only
+{{ label }} templates are covered. Limits: label_replace / label_join labels
+(string literals) and the one-argument label_values(<label>) form are not
+covered.
 
 Normalization:
   - remove __inputs, __requires, top-level id, top-level uid
@@ -52,10 +58,18 @@ GCOM = "https://grafana.com/api/dashboards"
 DS_VAR = "datasource"
 _DS_INPUT_RE = re.compile(r"^\$\{DS_[A-Z0-9_]+\}$")
 _BUILTIN_DS = {"-- mixed --", "-- grafana --", "-- dashboard --", "mixed", "grafana", "dashboard"}
-_LABEL_RE = re.compile(r'([A-Za-z_][A-Za-z0-9_]*)\s*(?:=~|!~|!=|=)\s*"')
+_IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
+_NOT_IDENT_BEFORE = r"(?<![A-Za-z0-9_$])"
 _BRACES_RE = re.compile(r"\{([^{}]*)\}")
-_LABEL_VALUES_RE = re.compile(r"label_values\([^()]*,\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)")
+_MATCHER_RE = re.compile(_NOT_IDENT_BEFORE + "(" + _IDENT + r")\s*(?:=~|!~|!=|=)\s*[\"'`]")
+_CLAUSE_RE = re.compile(
+    _NOT_IDENT_BEFORE + r"(?:by|without|on|ignoring|group_left|group_right)\s*\(([^()]*)\)"
+)
+_IDENT_RE = re.compile(_NOT_IDENT_BEFORE + "(" + _IDENT + ")")
+_LABEL_VALUES_RE = re.compile(_NOT_IDENT_BEFORE + r"label_values\s*\(")
+_LEGEND_RE = re.compile(r"\{\{\s*(" + _IDENT + r")\s*\}\}")
 _QUERY_KEYS = ("expr", "query", "definition")
+_LEGEND_KEY = "legendFormat"
 
 
 class DashboardError(Exception):
@@ -116,10 +130,10 @@ def _non_prom_input_names(dash: dict) -> set[str]:
 
 
 def _iter_queries(node):
-    """Yield (container, key, text) for every expr/query/definition string."""
+    """Yield (container, key, text) for every expr/query/definition/legendFormat string."""
     if isinstance(node, dict):
         for key, value in node.items():
-            if key in _QUERY_KEYS and isinstance(value, str):
+            if key in _QUERY_KEYS + (_LEGEND_KEY,) and isinstance(value, str):
                 yield node, key, value
             else:
                 yield from _iter_queries(value)
@@ -128,26 +142,81 @@ def _iter_queries(node):
             yield from _iter_queries(value)
 
 
+def _mask(text: str) -> str:
+    """Blank the inside of "...", '...' and `...` literals (same length), honouring
+    backslash escapes, so braces/identifiers in strings are invisible to the scanner."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if c not in "\"'`":
+            out.append(c)
+            i += 1
+            continue
+        j = i + 1
+        while j < n and text[j] != c:
+            j += 2 if (text[j] == "\\" and c != "`") else 1
+        j = min(j, n)
+        out.append(c + " " * (j - i - 1) + (c if j < n else ""))
+        i = j + 1
+    return "".join(out)
+
+
+def _label_positions(key: str, text: str) -> list[tuple[int, int, str]]:
+    """Return sorted (start, end, name) spans of label names in one query string.
+
+    Shared by used_labels() and relabel() so --labels and --relabel agree.
+    Covered: legendFormat "{{ label }}" templates; and in PromQL (expr/query/
+    definition, scanned on a string-masked copy): matchers inside {...},
+    by/without/on/ignoring/group_left/group_right (...) lists, and the last
+    argument of label_values(<metric>, <label>). NOT covered: label_replace /
+    label_join destination and source labels (they are string literals), and the
+    single-argument label_values(<label>) form (indistinguishable from a metric).
+    """
+    if key == _LEGEND_KEY:
+        return [(m.start(1), m.end(1), m.group(1)) for m in _LEGEND_RE.finditer(text)]
+    masked = _mask(text)
+    spans: dict[int, tuple[int, int, str]] = {}
+    for brace in _BRACES_RE.finditer(masked):
+        for m in _MATCHER_RE.finditer(brace.group(1)):
+            start = brace.start(1) + m.start(1)
+            spans[start] = (start, brace.start(1) + m.end(1), m.group(1))
+    for clause in _CLAUSE_RE.finditer(masked):
+        for m in _IDENT_RE.finditer(clause.group(1)):
+            start = clause.start(1) + m.start(1)
+            spans[start] = (start, clause.start(1) + m.end(1), m.group(1))
+    for lv in _LABEL_VALUES_RE.finditer(masked):
+        depth, last_comma, i = 1, None, lv.end()
+        while i < len(masked) and depth:
+            ch = masked[i]
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth -= 1
+            elif ch == "," and depth == 1:
+                last_comma = i
+            i += 1
+        if last_comma is not None and depth == 0:
+            m = re.fullmatch(r"(\s*)(" + _IDENT + r")\s*", masked[last_comma + 1 : i - 1])
+            if m:
+                start = last_comma + 1 + m.start(2)
+                spans[start] = (start, last_comma + 1 + m.end(2), m.group(2))
+    return sorted(spans.values())
+
+
 def used_labels(dash: dict) -> set[str]:
-    labels: set[str] = set()
-    for _, _, expr in _iter_queries(dash):
-        for body in _BRACES_RE.findall(expr):
-            labels.update(_LABEL_RE.findall(body))
-        labels.update(_LABEL_VALUES_RE.findall(expr))
-    return labels
+    return {name for _, key, text in _iter_queries(dash) for _, _, name in _label_positions(key, text)}
 
 
 def relabel(dash: dict, mapping: dict[str, str]) -> int:
-    """Rename labels (whole identifiers, single pass) in query strings only."""
-    if not mapping:
-        return 0
-    pattern = re.compile(
-        r"(?<![A-Za-z0-9_])(" + "|".join(map(re.escape, mapping)) + r")(?![A-Za-z0-9_])"
-    )
+    """Rename labels, only at the positions _label_positions() reports (whole
+    identifiers). Returns the number of strings changed."""
     count = 0
-    for node, key, expr in list(_iter_queries(dash)):
-        new = pattern.sub(lambda m: mapping[m.group(1)], expr)
-        if new != expr:
+    for node, key, text in list(_iter_queries(dash)):
+        new = text
+        for start, end, name in reversed(_label_positions(key, text)):
+            if name in mapping:
+                new = new[:start] + mapping[name] + new[end:]
+        if new != text:
             node[key] = new
             count += 1
     return count
@@ -237,7 +306,7 @@ def normalize(dash: dict, origin: str) -> dict:
 
     if rewrites == 0 and not had_ds_var:
         raise DashboardError(
-            "no Prometheus datasource references found — not a fit for this plugin"
+            "no Prometheus datasource references found - not a fit for this plugin"
         )
     dash["__source"] = f"{_source_label(origin)}, fetched {date.today().isoformat()}"
     return dash

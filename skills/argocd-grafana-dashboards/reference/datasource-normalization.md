@@ -50,9 +50,14 @@ not resolve against an arbitrary Grafana. `fetch_dashboard.py` rewrites them.
    `"${datasource}"`; that uid would not exist on another Grafana.
 5. Add `"__source": "<origin>, fetched <date>"` (local file: basename only).
 
-CLI extras: `--out PATH` (atomic write, LF), `--labels` (list label names used by
-the queries), `--relabel OLD=NEW` (repeatable label rename in `expr`/`query`/
-`definition`).
+CLI extras: `--out PATH` (atomic write, LF), `--labels` (list label names used),
+`--relabel OLD=NEW` (repeatable label rename). Both label flags use one scanner
+over `expr` / `query` / `definition` strings, with string literals masked first,
+and cover only: matchers inside `{...}`; `by` / `without` / `on` / `ignoring` /
+`group_left` / `group_right` lists; the last argument of
+`label_values(<metric>, <label>)`. In `legendFormat`, `{{ label }}` templates are
+covered. Not covered: `label_replace` / `label_join` labels (string literals) and
+the one-argument `label_values(<label>)` form.
 
 A dashboard with **no** prometheus reference anywhere → the script exits non-zero
 (it is not a fit for this plugin).

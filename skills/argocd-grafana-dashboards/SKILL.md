@@ -93,7 +93,13 @@ an app that emits nothing (Metabase, a bare MySQL) is a separate workflow
    often use old scrape labels (`kubernetes_namespace`, `kubernetes_pod_name`)
    where Prometheus has `namespace` / `pod`; re-run step 1 with
    `--relabel kubernetes_namespace=namespace --relabel kubernetes_pod_name=pod`
-   (repeatable; whole-identifier rewrite of `expr`/`query`/`definition` only).
+   (repeatable; whole identifiers only). `--labels` and `--relabel` share one
+   scanner and cover the same positions: matchers inside `{...}`,
+   `by`/`without`/`on`/`ignoring`/`group_left`/`group_right (...)` lists, the last
+   argument of `label_values(<metric>, <label>)`, and `{{ label }}` templates in
+   `legendFormat`. String values (`pod="kubernetes_pod_name"`), metric names and
+   `label_replace` arguments are never touched. Re-running into the same `--out`
+   path atomically replaces the file.
 3. Create `charts/<app>/templates/grafana-dashboards.yaml` (the template above)
    if it does not exist; add the `grafanaDashboards` stanza to
    `charts/<app>/values.yaml`:

@@ -222,7 +222,7 @@ def test_relabel_rewrites_queries_and_variable_definitions():
     assert 'namespace=~\\"$namespace\\"' in text
 
 
-def test_relabel_respects_identifier_boundaries_and_only_touches_query_keys(tmp_path):
+def test_relabel_respects_identifier_boundaries_and_only_touches_query_and_legend_keys(tmp_path):
     src = _write(tmp_path / "d.json", {"title": "kubernetes_namespace", "panels": [{
         "datasource": "prometheus",
         "targets": [{"expr": 'up{kubernetes_namespace="a", kubernetes_namespace_foo="b", x_kubernetes_namespace="c"}',
@@ -230,7 +230,7 @@ def test_relabel_respects_identifier_boundaries_and_only_touches_query_keys(tmp_
     out = json.loads(_cli(src, "--relabel", "kubernetes_namespace=namespace").stdout)
     t = out["panels"][0]["targets"][0]
     assert t["expr"] == 'up{namespace="a", kubernetes_namespace_foo="b", x_kubernetes_namespace="c"}'
-    assert t["legendFormat"] == "{{kubernetes_namespace}}"
+    assert t["legendFormat"] == "{{namespace}}"      # legend templates are relabelled too (review round)
     assert out["title"] == "kubernetes_namespace"
 
 
@@ -241,3 +241,93 @@ def test_args_order_and_errors():
     assert _cli(BARE, "--bogus").returncode == 2                 # unknown flag
     assert _cli(BARE, "--out").returncode == 2                   # missing value
     assert _cli().returncode == 2                                # no source
+
+
+# --- review round: shared label scanner, legends, ASCII stderr ---
+def _dash_with(tmp_path, expr=None, legend=None, extra_target=None):
+    tgt = {}
+    if expr is not None:
+        tgt["expr"] = expr
+    if legend is not None:
+        tgt["legendFormat"] = legend
+    return _write(tmp_path / "s.json", {"title": "t", "panels": [
+        {"datasource": "prometheus", "targets": [tgt]}]})
+
+
+def _relabelled(tmp_path, expr=None, legend=None, mapping="kubernetes_pod_name=pod"):
+    out = json.loads(_cli(_dash_with(tmp_path, expr, legend), "--relabel", mapping).stdout)
+    return out["panels"][0]["targets"][0]
+
+
+def _labels(tmp_path, expr):
+    return json.loads(_cli(_dash_with(tmp_path, expr), "--labels").stdout)
+
+
+def test_legend_template_labels_are_relabelled_only_inside_braces(tmp_path):
+    t = _relabelled(tmp_path, "up", "{{kubernetes_pod_name}} and {{ kubernetes_pod_name }} kubernetes_pod_name")
+    assert t["legendFormat"] == "{{pod}} and {{ pod }} kubernetes_pod_name"
+    t = _relabelled(tmp_path, "up", "x {pod={{kubernetes_pod_name}}}")
+    assert t["legendFormat"] == "x {pod={{pod}}}"
+
+
+def test_legend_labels_are_reported(tmp_path):
+    src = _dash_with(tmp_path, "up", "{{ kubernetes_pod_name }}")
+    assert json.loads(_cli(src, "--labels").stdout) == ["kubernetes_pod_name"]
+
+
+def test_nested_brace_regex_does_not_hide_matchers(tmp_path):
+    expr = 'up{a=~"x{2}", kubernetes_pod_name="p"}'
+    assert _labels(tmp_path, expr) == ["a", "kubernetes_pod_name"]
+    assert _relabelled(tmp_path, expr)["expr"] == 'up{a=~"x{2}", pod="p"}'
+
+
+def test_grouping_and_matching_clauses_are_reported_and_rewritten(tmp_path):
+    cases = {
+        "sum by (kubernetes_pod_name, job) (up)": "sum by (pod, job) (up)",
+        "sum without(kubernetes_pod_name) (up)": "sum without(pod) (up)",
+        "a / on(kubernetes_pod_name) group_left(kubernetes_pod_name) b":
+            "a / on(pod) group_left(pod) b",
+        "a / ignoring (kubernetes_pod_name) group_right () b": "a / ignoring (pod) group_right () b",
+    }
+    for expr, want in cases.items():
+        assert "kubernetes_pod_name" in _labels(tmp_path, expr), expr
+        assert _relabelled(tmp_path, expr)["expr"] == want
+
+
+def test_string_values_metrics_and_label_replace_args_are_left_alone(tmp_path):
+    expr = 'up{pod="kubernetes_pod_name"}'
+    assert _labels(tmp_path, expr) == ["pod"]
+    assert _relabelled(tmp_path, expr)["expr"] == expr
+    expr = "label_values(kubernetes_pod_name)"       # a metric literally named like the label
+    assert _labels(tmp_path, expr) == []
+    assert _relabelled(tmp_path, expr)["expr"] == expr
+    expr = 'label_replace(up, "kubernetes_pod_name", "$1", "x", "(.*)")'
+    assert _relabelled(tmp_path, expr)["expr"] == expr
+    expr = "kubernetes_pod_name{job=\"j\"}"
+    assert _relabelled(tmp_path, expr)["expr"] == expr
+
+
+def test_label_values_last_argument_is_a_label(tmp_path):
+    expr = 'label_values(up{a="1",b="2"}, kubernetes_pod_name)'
+    assert _labels(tmp_path, expr) == ["a", "b", "kubernetes_pod_name"]
+    assert _relabelled(tmp_path, expr)["expr"] == 'label_values(up{a="1",b="2"}, pod)'
+
+
+def test_escaped_quotes_in_strings_are_masked(tmp_path):
+    expr = 'up{a="x\\"}, kubernetes_pod_name=\\"", kubernetes_pod_name="y"}'
+    assert _labels(tmp_path, expr) == ["a", "kubernetes_pod_name"]
+
+
+def test_labels_after_relabel_no_longer_list_old_names(tmp_path):
+    out = tmp_path / "o.json"
+    assert _cli(BARE, "--relabel", "kubernetes_namespace=namespace",
+                "--relabel", "kubernetes_pod_name=pod", "--out", out).returncode == 0
+    labels = set(json.loads(_cli(out, "--labels").stdout))
+    assert labels == {"namespace", "pod"}
+
+
+def test_no_prometheus_error_is_plain_ascii(tmp_path):
+    src = _write(tmp_path / "loki.json", {"title": "x", "panels": [
+        {"datasource": {"type": "loki", "uid": "l"}}]})
+    p = subprocess.run([sys.executable, str(SCRIPT), str(src)], capture_output=True)
+    assert p.returncode == 1 and p.stderr.decode("ascii")

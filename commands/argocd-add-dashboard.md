@@ -48,12 +48,25 @@ the PR, end with a summary.
    a. Metric names: grep the JSON for the metrics it queries; sample a few against
       `/api/v1/label/__name__/values`. If most are absent, warn it is likely the wrong dashboard.
    b. Labels: `python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>" --labels`
-      prints the label names the dashboard's queries use. Fetch the real ones by
-      querying Prometheus's `/api/v1/labels` (and confirm on one series with
-      `/api/v1/series?match[]=up{job=~".*<app>.*"}`).
-      For every dashboard label that Prometheus does not have, warn and offer to rewrite. Common scrape-label renames:
-      `kubernetes_namespace→namespace`, `kubernetes_pod_name→pod`, `kubernetes_name→service`, `kubernetes_node→node`.
-      Re-run step 4 adding `--relabel OLD=NEW` for each accepted rename. With no cluster, say the label check was skipped.
+      prints the label names the dashboard uses (matchers, `by`/`on`/... lists,
+      `label_values(..., <label>)`, legend `{{ label }}` templates).
+      - **No reachable cluster** (`kubectl --context "$CTX" get ns` fails): print
+        `label check skipped (no cluster)` and continue with step 6.
+      - Otherwise reach Prometheus through its own service. Find it with
+        `kubectl --context "$CTX" -n <monitoring-ns> get svc -l app=kube-prometheus-stack-prometheus`
+        (or `kubectl --context "$CTX" -n <monitoring-ns> get svc | grep prometheus`),
+        then run a short-lived foreground
+        `kubectl --context "$CTX" -n <monitoring-ns> port-forward svc/<prometheus-svc> 9090:9090`
+        and, from a second shell, one-shot `curl -s localhost:9090/api/v1/labels`
+        (confirm on one series with `curl -s 'localhost:9090/api/v1/series?match[]=up{job=~".*<app>.*"}'`).
+        Stop the port-forward afterwards.
+      - For every dashboard label that Prometheus does not have, warn and offer to rewrite. Common scrape-label renames:
+        `kubernetes_namespace->namespace`, `kubernetes_pod_name->pod`, `kubernetes_name->service`, `kubernetes_node->node`.
+      - For each accepted rename, re-run step 4 with one `--relabel OLD=NEW` per rename, e.g.
+        ```bash
+        python ${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py "<source>"           --relabel kubernetes_namespace=namespace --relabel kubernetes_pod_name=pod           --out charts/<app>/grafana-dashboards/<slug>.json
+        ```
+        Re-running into the same `--out` path safely replaces the file (atomic write).
 6. If `charts/<app>/templates/grafana-dashboards.yaml` is absent, create it (the
    template in the `argocd-grafana-dashboards` skill). Add the `grafanaDashboards`
    stanza to `charts/<app>/values.yaml` (`enabled: true`, optional `folder`).
@@ -76,10 +89,14 @@ the PR, end with a summary.
       `folderAnnotation: grafana_folder` — a one-time change to
       `charts/kube-prometheus-stack/` (see `argocd-grafana-dashboards` →
       `reference/datasource-normalization.md`). Grafana pod restart needed after.
-    - Also set `grafana.sidecar.dashboards.searchNamespace: ALL` in
-      `charts/kube-prometheus-stack/`, otherwise the sidecar only watches its own
-      namespace and never sees the ConfigMap (see the kube-prometheus-stack
-      notes in the plugin's chart notes).
+    - The sidecar also has to watch the app's namespace. See the
+      kube-prometheus-stack section of
+      `${CLAUDE_PLUGIN_ROOT}/skills/values-review/reference/chart-notes.md` when
+      present; otherwise set these Grafana sidecar values in
+      `charts/kube-prometheus-stack/values.yaml` (under `grafana:`):
+      `sidecar.dashboards.searchNamespace: ALL`,
+      `sidecar.dashboards.folderAnnotation: grafana_folder`,
+      `sidecar.dashboards.provider.foldersFromFilesStructure: true`.
 
 ## Notes
 
