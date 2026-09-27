@@ -721,3 +721,26 @@ def test_every_ls_remote_call_is_guarded():
         # a call has an argument after ls-remote; prose mentions the guarded form or none
         if re.search(r"git ls-remote\s+(<|https?:|\$|\S+/)", line):
             assert GUARD in line, line
+
+
+def test_onboarder_live_verification_fixes():
+    a = read("agents/argocd-onboarder.md")
+    assert "never run any cluster command" in a
+    assert "use it, print" not in a and "IS local and no `--context`" not in a
+    assert "context=<none — local-only>" in a and "which kube-context should I use?" in a
+    assert "never selects them on its own" in a
+    pre = a[a.index("**Preconditions"):a.index("## Sequence")]
+    assert "Run these checks first; they need no cluster" in pre
+    assert "git status --porcelain --untracked-files=no" in pre
+    assert "git ls-files charts/<app>" in pre
+    assert "merge not attempted: no pushed branch" in a and "NEVER merges locally" in a
+    assert 'bash "${CLAUDE_PLUGIN_ROOT}/scripts/list_crds.sh" charts/<app>' in a
+    assert "comm -12" in a and "(CRD provider)" in a and 'argocd.argoproj.io/sync-wave: "-1"' in a
+    assert "crds.enabled" in a and "installCRDs" in a
+    assert "ArtifactHub" in pre or "ArtifactHub" in a
+    ac = read("commands/argocd-add-chart.md")
+    assert "installCRDs" in ac and "crds.enabled" in ac
+    n = read("skills/values-review/reference/chart-notes.md")
+    heads = [ln for ln in n.splitlines() if ln.startswith("## ")]
+    assert any(h.startswith("## cert-manager") for h in heads)
+    assert "cert-manager.crds.enabled" in n and "cert-manager.crds.keep" in n and "ClusterIssuer" in n

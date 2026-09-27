@@ -175,3 +175,25 @@ keys of the bundled Grafana subchart; `folderAnnotation` requires `foldersFromFi
   `retention: 10d` by default, which is a lot for a small node. For a demo use e.g.
   `prometheus.prometheusSpec.resources.requests: {cpu: 200m, memory: 512Mi}` and
   `prometheus.prometheusSpec.retention: 6h`. Size real clusters from your own series count, not from these numbers.
+
+## cert-manager (`cert-manager` from https://charts.jetstack.io; key paths verified with `helm show values`, chart v1.21.2, 2026-09-27)
+
+Destination namespace: `cert-manager`. The chart ships with the CRDs **disabled** (`crds.enabled: false`; the older
+`installCRDs` is deprecated and only an alias for `crds.enabled=true` + `crds.keep=true`), so a default install has no
+CRDs, the controller starts but Issuer/Certificate resources cannot exist, and `list_crds.sh` reports nothing. Set in
+`charts/cert-manager/values.yaml` (base, environment-agnostic):
+
+```yaml
+cert-manager:
+  crds:
+    enabled: true
+    keep: true
+```
+
+Key paths: `cert-manager.crds.enabled` and `cert-manager.crds.keep`.
+`crds.keep: true` (already the chart default) adds the `helm.sh/resource-policy: keep` annotation to the CRDs so removing
+the release does not delete them; deleting a CRD garbage-collects every Certificate/Issuer, so leave it on.
+With `crds.enabled: true` the chart is a **CRD provider**: mark it ` (CRD provider)` in the catalog inventory and give its
+Application `argocd.argoproj.io/sync-wave: "-1"` so the CRDs exist before apps that create Issuers/Certificates.
+Functional check (describe; do not run without the user): apply a self-signed `ClusterIssuer` and confirm it reaches
+`Ready=True` (`kubectl --context "$CTX" get clusterissuer -o wide`); optionally issue a test `Certificate` from it.

@@ -37,6 +37,10 @@ opening the PR, end with a summary.
    python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/values.yaml.tmpl" charts/<app>/values.yaml \
      CHART_NAME=<chart> CHART_VERSION=<version> CHART_REPO_URL=<repo-url>
    ```
+   **CRD toggle.** Run `helm show values` (through the private-config pattern in `helm-chart-onboarding`) and look for a
+   CRD toggle (`crds.enabled`, `installCRDs`, `crds.install`). When the chart's own docs say CRDs are required for it to
+   work, enable the toggle in the CATALOG `charts/<app>/values.yaml` (environment-agnostic) and tell the user
+   (e.g. cert-manager ships `crds.enabled: false`, so the default install has no CRDs; see its chart-notes section).
 5. Verify (must pass — do not skip):
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/helm_deps.sh" charts/<app>   # builds in place; private Helm repo config

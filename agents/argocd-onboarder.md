@@ -35,31 +35,42 @@ directory, from nothing to an open PR.
   "go ahead and merge" lifts the merge stop only; it never lifts the push/PR stop for an env named `prod`/`production`,
   and never overrides the privileged-manifest refusals of `argocd-extra-manifests`.
 - **Target context is a HARD STOP, not a default** (this overrides step 4 of target-resolution.md, "wait for yes", for
-  this agent). If the caller did not pass `--context <name>` and the current kube-context is not clearly a local cluster
-  (`kind-*`, `docker-desktop`, `minikube`, `k3d-*`, `rancher-desktop`), run everything LOCAL-ONLY (no cluster command at
-  all, skip the reachability probe and the rollout step) and put the question "which kube-context should I use?" in the
-  hand-off. If the current context IS local and no `--context` was passed, use it, print the `Target:` line and record it
-  in the hand-off. The rollout step (11) additionally requires an explicit `--context` from the caller.
+  this agent). You must never run any cluster command (not even the reachability probe or `cluster-info`) unless the
+  caller passed an explicit `--context <name>`. Without it, run everything LOCAL-ONLY (no cluster command at all; skip the
+  reachability probe and the rollout step), print `Target: context=<none — local-only>`, and put the question
+  "which kube-context should I use?" in the hand-off (the output of `kubectl config get-contexts -o name` may be listed:
+  it reads only the local kubeconfig). Being the current context never qualifies a cluster. The local-cluster names
+  (`kind-*`, `docker-desktop`, `minikube`, `k3d-*`, `rancher-desktop`) matter only for the local-override decision once a
+  context was passed: `docker-desktop` etc. are treated as local for overrides, but the agent never selects them on its own.
+  The rollout step (11) requires the explicit `--context`.
 - Defaults: version = latest stable; destination namespace = default `<app>` **unless** the chart's docs/`namespace:` say
   otherwise (known: metrics-server → `kube-system`; cert-manager → `cert-manager`; ingress-nginx → `ingress-nginx`);
   `targetRevision` per `argocd-repo-conventions`.
-- **Preconditions (stop and report if any fails):** CWD is a GitOps repo (`charts/`, `environments/`, `.claude/CLAUDE.md`);
-  the requested env exists (`environments/<env>/`); `git status --porcelain` shows no tracked changes (untracked
-  `bootstrap/install.sh` is fine); `charts/<app>` and `environments/<env>/apps/<app>.yaml` do not already exist (else say
+- **Preconditions (stop and report if any fails).** Run these checks first; they need no cluster, so they come before
+  target resolution. CWD is a GitOps repo (`charts/`, `environments/`, `.claude/CLAUDE.md`);
+  the requested env exists (`environments/<env>/`); `git status --porcelain --untracked-files=no` shows no changes
+  (untracked files such as `bootstrap/install.sh` must not trip it); the app does not already exist: `git ls-files charts/<app>`
+  (TRACKED files, so git-ignored vendored dirs such as `charts/<app>/charts/*.tgz` from an aborted run do
+  not count) and `environments/<env>/apps/<app>.yaml` are both absent (else say
   "already exists — use `/argocd-review-values` or edit by hand"); branch `onboard/<app>-<env>` does not exist.
   Before doing the work, run `git remote get-url origin` and `gh auth status` (read-only). If either fails (no remote or unauthenticated `gh`), still do all
   local work (the draft is valuable), record `PR: not opened — <reason>` in the hand-off from the start, and stop at
   step 10 with the fallback: follow `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md`
   (status `not pushed: <reason>`).
-- If the env is missing from the request, stop and return the single question listing the environments (`ls environments/`);
-  if the chart is missing, return the question with the discovery hint (ArtifactHub URL for the chart name).
+- If anything is missing from the request (env, chart, chart repo URL), stop and return ONE combined question listing
+  everything missing: for the env, list the environments (`ls environments/`); for the chart or its repo URL, give the
+  discovery hint (ArtifactHub URL for the chart name).
+- `--yes` with no pushed branch: there is nothing to merge, so `--yes` is ignored and the hand-off says
+  "merge not attempted: no pushed branch". The agent NEVER merges locally into the default branch.
 - Fix loops: at most 3 attempts, then stop and report (see Failure handling). This cap covers the local lint/render loops
   BEFORE the PR; the rollout's hard cap of 4 fix cycles (see `argocd-sync` and `argocd-rollout`) is a separate, post-merge loop.
 
 ## Sequence
 
-0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
-1. Check every precondition listed under Operating rules; stop and report on the first failure.
+0. **Resolve the target** per the HARD STOP rule above, after the cluster-free Preconditions (Operating rules) have been
+   checked: follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md` only when the caller passed `--context <name>`
+   (use its `CTX` and `ARGOCD_NS` in every cluster command below); otherwise stay LOCAL-ONLY.
+1. Confirm the Preconditions passed (they were checked before step 0); stop and report on the first failure.
 2. Resolve chart: name, exact version, Helm repo URL (ArtifactHub via WebFetch if
    needed). Prefer official repos.
 3. `git switch -c onboard/<app>-<env>`.
@@ -79,6 +90,10 @@ directory, from nothing to an open PR.
    `rancher-desktop`), the env's destination (`Destination cluster for <env>` in `.claude/CLAUDE.md`) is that cluster
    (normally the in-cluster destination `https://kubernetes.default.svc`), and the env is not named `prod`/`production`.
    Otherwise put the override in the hand-off as a recommendation, not in git.
+   Also check for a chart CRD toggle: run `helm show values` (through the private-config pattern in
+   `helm-chart-onboarding`) and look for `crds.enabled`, `installCRDs` or `crds.install`; when the chart's own docs say
+   CRDs are required for it to work, enable the toggle in the CATALOG values (environment-agnostic) and note it in the
+   hand-off (e.g. cert-manager ships with `crds.enabled: false`; see its section of the chart notes).
 5. Verify catalog. Create the lock once in the catalog entry, then render-check on a temp copy so the
    working tree is not rewritten (both scripts use a private Helm repo config, so a dependency URL that is
    not in the user's repo list still works):
@@ -88,6 +103,13 @@ directory, from nothing to an open PR.
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <app-namespace> >/dev/null   # renders a temp copy: working tree untouched
    ```
    All must pass; fix and re-run within the 3-attempt cap.
+   **CRD check.** Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/list_crds.sh" charts/<app> --namespace <app-namespace>`. If it
+   prints any CRD names: the app is a CRD provider. Append ` (CRD provider)` to the app's cell in the `.claude/CLAUDE.md`
+   catalog-inventory row (step 8) and, when rendering the Application in step 6, add the annotation
+   `argocd.argoproj.io/sync-wave: "-1"` under `metadata.annotations` exactly as `commands/argocd-deploy.md` step 5a
+   specifies (default yes in a non-interactive run; list it under "Questions answered with defaults"). Then check overlap
+   with the other catalog charts as `commands/argocd-add-chart.md` step 5b does (same script per chart, `comm -12` against
+   this chart's list); on overlap do NOT guess `crds.enabled`: record the overlap in the hand-off as a decision for the caller.
 6. Deploy wiring: read from `.claude/CLAUDE.md` `GITOPS_REPO_URL` (the "GitOps repo
    URL" line), `ARGOCD_NAMESPACE` ("Argo CD namespace"), `DEST_SERVER` ("Destination
    cluster for <env>") and the default branch ("Default branch"), then render (use
@@ -123,7 +145,7 @@ not open a PR for a chart that does not lint or template cleanly.
 
 ## Hand-off (always print this, filled in)
 
-- **Target:** context=<CTX> (how resolved).
+- **Target:** context=<CTX> (how resolved), or `context=<none — local-only>` with the question "which kube-context should I use?".
 - **Done:** chart <name> <version>; PR <url or "not opened: <reason>">; files changed.
 - **NOT done:** not merged / not synced / not verified on a cluster (say which).
 - **Local override decision:** applied / recommended only / n.a. (why).
