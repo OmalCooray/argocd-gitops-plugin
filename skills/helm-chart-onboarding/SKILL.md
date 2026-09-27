@@ -42,8 +42,9 @@ ArtifactHub API (`reference/artifacthub-api.md`), which lists `available_version
   helm search repo tmp/<chart> --versions -o json
   unset HELM_REPOSITORY_CONFIG HELM_REPOSITORY_CACHE   # when done
   ```
-  `helm dependency build` also reads the repo config: set the same two variables for
-  that command, or accept that it updates the user's repo list.
+  `helm dependency build` with a URL repo (no alias) does not touch the user's repo list:
+  with the two variables set the cache is private too; without them it only writes to
+  the user's Helm cache.
 - Default to the **latest stable** (non-`-rc`, non-`-beta`) unless the user names
   one, or unless the latest requires a Kubernetes version newer than the target
   cluster (`helm show chart ... | grep kubeVersion`).

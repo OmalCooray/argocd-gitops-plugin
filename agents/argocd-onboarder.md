@@ -26,7 +26,7 @@ directory, from nothing to an open PR.
 - One branch: `onboard/<app>-<env>`. Never commit to the default branch; never force-push.
 - **Deployment happens only through git.** There is no direct `kubectl apply`, `kubectl patch`, `kubectl edit`,
   `kubectl scale`, `kubectl delete` or `helm install` / `helm upgrade` of workloads. Allowed: read-only inspection, local
-  `helm template` / `helm lint`, the refresh/sync ladder from the `argocd-rollout` skill, and merging the PR (behind its
+  `helm template` / `helm lint`, the refresh/sync ladder and the deadlock-clear recipe from the `argocd-rollout` skill, and merging the PR (behind its
   checkpoint). An environment being *named* `live` or `prod` does not change this; pushing/merging to a `prod` env still
   needs its checkpoint.
 - **Non-interactive by default.** You cannot ask mid-run. At every "ask/confirm" point: (a) write the question and the
@@ -34,6 +34,12 @@ directory, from nothing to an open PR.
   **merge checkpoint**: there you stop and return a draft (PR title/body, exact next command). A caller's `--yes` /
   "go ahead and merge" lifts the merge stop only; it never lifts the push/PR stop for an env named `prod`/`production`,
   and never overrides the privileged-manifest refusals of `argocd-extra-manifests`.
+- **Target context is a HARD STOP, not a default** (this overrides step 4 of target-resolution.md, "wait for yes", for
+  this agent). If the caller did not pass `--context <name>` and the current kube-context is not clearly a local cluster
+  (`kind-*`, `docker-desktop`, `minikube`, `k3d-*`, `rancher-desktop`), run everything LOCAL-ONLY (no cluster command at
+  all, skip the reachability probe and the rollout step) and put the question "which kube-context should I use?" in the
+  hand-off. If the current context IS local and no `--context` was passed, use it, print the `Target:` line and record it
+  in the hand-off. The rollout step (11) additionally requires an explicit `--context` from the caller.
 - Defaults: version = latest stable; destination namespace = default `<app>` **unless** the chart's docs/`namespace:` say
   otherwise (known: metrics-server → `kube-system`; cert-manager → `cert-manager`; ingress-nginx → `ingress-nginx`);
   `targetRevision` per `argocd-repo-conventions`.
@@ -41,12 +47,15 @@ directory, from nothing to an open PR.
   the requested env exists (`environments/<env>/`); `git status --porcelain` shows no tracked changes (untracked
   `bootstrap/install.sh` is fine); `charts/<app>` and `environments/<env>/apps/<app>.yaml` do not already exist (else say
   "already exists — use `/argocd-review-values` or edit by hand"); branch `onboard/<app>-<env>` does not exist.
-  If there is no remote (or `gh` is unauthenticated), follow `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md`
+  Before doing the work, run `git remote get-url origin` and `gh auth status` (read-only). If either fails (no remote or unauthenticated `gh`), still do all
+  local work (the draft is valuable), record `PR: not opened — <reason>` in the hand-off from the start, and stop at
+  step 10 with the fallback: follow `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md`
   when present; otherwise print the branch, PR body and the exact `git push -u origin <branch>` / `gh pr create …` commands
   and stop with status `not pushed: <reason>`.
-- If chart repo/version/env are missing from the request, stop and return the single question with the discovery hint
-  (ArtifactHub URL for the chart name).
-- Fix loops: at most 3 attempts, then stop and report (see Failure handling).
+- If the env is missing from the request, stop and return the single question listing the environments (`ls environments/`);
+  if the chart is missing, return the question with the discovery hint (ArtifactHub URL for the chart name).
+- Fix loops: at most 3 attempts, then stop and report (see Failure handling). This cap covers the local lint/render loops
+  BEFORE the PR; the rollout's hard cap of 4 fix cycles (see `argocd-sync` and `argocd-rollout`) is a separate, post-merge loop.
 
 ## Sequence
 
@@ -67,14 +76,16 @@ directory, from nothing to an open PR.
    If the chart is known to need a local-cluster override (see
    `${CLAUDE_PLUGIN_ROOT}/skills/values-review/reference/chart-notes.md` when present, e.g. metrics-server needs
    `--kubelet-insecure-tls` on kind/Docker Desktop), add it to the **env overlay**, commented `# local clusters only`,
-   not the catalog — and only when the resolved kube-context is a local cluster (`kind-*`, `docker-desktop`, `minikube`,
-   `k3d-*`, `rancher-desktop`); otherwise mention it in the hand-off instead.
+   not the catalog — only when ALL hold: the resolved context is local (`kind-*`, `docker-desktop`, `minikube`, `k3d-*`,
+   `rancher-desktop`), the env's destination (`Destination cluster for <env>` in `.claude/CLAUDE.md`) is that cluster
+   (normally the in-cluster destination `https://kubernetes.default.svc`), and the env is not named `prod`/`production`.
+   Otherwise put the override in the hand-off as a recommendation, not in git.
 5. Verify catalog. Create the lock once in the catalog entry, then render-check on a temp copy so the
    working tree is not rewritten:
    ```bash
-   helm dependency build charts/<app>      # creates Chart.lock (committed)
+   helm dependency build charts/<app>      # creates Chart.lock (committed); URL repos only use the Helm cache, no repo-list change
    helm lint charts/<app>
-   tmp="$(mktemp -d)"; cp -r "charts/<app>" "$tmp/"; helm dependency build "$tmp/<app>"
+   tmp="$(mktemp -d)"; cp -r "charts/<app>" "$tmp/"; helm dependency build "$tmp/<app>"   # same: no env vars needed to protect the repo list
    helm template <app> "$tmp/<app>" -n <app-namespace> >/dev/null; rm -rf "$tmp"
    ```
    All must pass; fix and re-run within the 3-attempt cap.
@@ -103,7 +114,7 @@ directory, from nothing to an open PR.
     return the PR with the next command. If merging: merge it, then load the `argocd-rollout` skill and run its loop
     (declared → Synced → Healthy → a passing functional check), obeying the caps in `argocd-sync` and the rollout skill;
     any fix goes through a further PR behind its own checkpoint.
-12. Print the Hand-off section below.
+12. Print the Hand-off section below. It is printed at EVERY stop (step 10 push/PR stop, step 11 merge stop, and the end).
 
 ## Failure handling
 
@@ -113,7 +124,9 @@ not open a PR for a chart that does not lint or template cleanly.
 
 ## Hand-off (always print this, filled in)
 
+- **Target:** context=<CTX> (how resolved).
 - **Done:** chart <name> <version>; PR <url or "not opened: <reason>">; files changed.
 - **NOT done:** not merged / not synced / not verified on a cluster (say which).
+- **Local override decision:** applied / recommended only / n.a. (why).
 - **Questions answered with defaults:** <list>.
 - **Next command:** `git push -u origin onboard/<app>-<env> && gh pr create …` (if unpushed), else `/argocd-sync <app> <env>`.

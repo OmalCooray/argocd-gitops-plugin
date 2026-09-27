@@ -471,7 +471,7 @@ def test_kubelet_insecure_tls_is_local_cluster_only():
 def test_onboarder_is_cold_runnable_and_self_consistent():
     a = read("agents/argocd-onboarder.md")
     assert "Never deploy to a live cluster" not in a
-    for needle in ("no direct", "Non-interactive", "default `<app>`", "kube-system",
+    for needle in ("no direct `kubectl apply`", "Non-interactive", "default `<app>`", "kube-system",
                    ".claude/CLAUDE.md", "git status --porcelain", "already exists", "no remote",
                    "Hand-off", "NOT done"):
         assert needle in a, needle
@@ -481,7 +481,7 @@ def test_onboarder_is_cold_runnable_and_self_consistent():
     assert a.rstrip().split("\n## ")[-1].startswith("Hand-off")
     # consistent fix cap
     assert "at most 3 attempts" in a
-    assert "4 fix cycles" not in a and "until they do" not in a
+    assert "up to 4 fix cycles" not in a and "until they do" not in a
     # --yes lifts only the merge stop
     sent = [s for s in re.split(r"(?<=\.)\s+", a.replace("\n", " ")) if "--yes" in s]
     assert sent and any("never" in s and "push/PR" in s and "prod" in s for s in sent)
@@ -493,3 +493,21 @@ def test_helm_onboarding_skill_does_not_touch_global_repo_list():
     for block in re.findall(r"```.*?```", s, re.S):
         if "helm repo add" in block:
             assert "HELM_REPOSITORY_CONFIG" in block
+
+
+def test_onboarder_review_fixes():
+    a = read("agents/argocd-onboarder.md")
+    for needle in ("HARD STOP", "LOCAL-ONLY", "which kube-context", "no direct `kubectl apply`",
+                   "deadlock-clear recipe", "ls environments/"):
+        assert needle in a, needle
+    pre = a[a.index("**Preconditions"):a.index("## Sequence")]
+    assert "git remote get-url origin" in pre and "gh auth status" in pre
+    hand = a[a.index("## Hand-off"):]
+    assert "Target:" in hand and "local override" in hand.lower()
+    assert "EVERY stop" in a
+    assert a.count("See Failure handling") + a.count("see Failure handling") == 1
+    assert "BEFORE the PR" in a and "post-merge" in a
+    ov = a[a.index("If the chart is known to need a local-cluster override"):a.index("5. Verify catalog")]
+    assert "prod" in ov and "production" in ov and "in-cluster destination" in ov
+    s = read("skills/helm-chart-onboarding/SKILL.md")
+    assert "updates the user's repo list" not in s
