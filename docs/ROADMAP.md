@@ -40,7 +40,7 @@
 - `CHANGELOG.md` (Keep a Changelog format), backfilled from the 11 merged PRs into an `[0.4.0]` "Unreleased history" section.
 - Bump `.claude-plugin/plugin.json` `version` to `0.5.0`.
 - Tag `v0.5.0` on the merge commit. Every subsequent milestone ends with a `CHANGELOG` entry + a tag.
-- Add `docs/CONTRIBUTING.md`: the spec→plan→execute→dogfood→PR flow, the interaction-contract rule, "a `templates/` change bumps the wrapper chart version," "no active `.mcp.json`."
+- Add `docs/CONTRIBUTING.md`: the spec→plan→execute→dogfood→PR flow, the interaction-contract rule, "a `templates/` change bumps the wrapper chart version," "shell-only, no MCP dependency."
 - **Done when:** `v0.5.0` is tagged with a CHANGELOG entry; contribution flow is written down.
 
 ### 0.5.4 — Documentation ownership  · S · assessment item #9
@@ -139,10 +139,7 @@ Add a `prod` environment to `test-k8s-configs`. Deploy `airflow` (or a lighter a
 - **Done when:** a skill-triggering eval baseline exists, is reproducible, and no
   skill scores below the agreed threshold.
 
-### 0.8.4 — Pin external couplings  · S
-- `.mcp.json.example`: pin `argocd-mcp` to an exact version; add a note that the
-  "use `mcp__argocd__*` if present" skill instructions are validated against that
-  version (or mark them unvalidated).
+### 0.8.4 — Document external couplings  · S
 - `fetch_dashboard.py`: document the grafana.com endpoint dependency in the module
   docstring; confirm the URL/local-path fallbacks are the supported path if it
   changes.
@@ -151,7 +148,7 @@ Add a `prod` environment to `test-k8s-configs`. Deploy `airflow` (or a lighter a
 - [ ] `/argocd-rollback` proven on a broken live app.
 - [ ] `argocd-onboarder` proven unattended end-to-end.
 - [ ] Skill-triggering eval baseline recorded; in CI as a report.
-- [ ] External couplings (MCP, grafana.com) pinned / documented.
+- [ ] External coupling (grafana.com) documented.
 - [ ] `CHANGELOG` + `v0.8.0` tag.
 
 ---
@@ -216,7 +213,7 @@ Cut `v1.0.0` when **every** box is checked:
 
 **Quality**
 - [ ] Skill-triggering eval baseline recorded; no skill below threshold.
-- [ ] External couplings (Argo CD MCP, grafana.com API) pinned or explicitly marked unvalidated.
+- [ ] External coupling (grafana.com API) documented or explicitly marked unvalidated.
 - [ ] Reference docs split by concern, each with an owner + review date.
 
 **Adoption**

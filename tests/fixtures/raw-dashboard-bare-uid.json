@@ -1,0 +1,14 @@
+{
+  "title": "Bare UID Dashboard",
+  "__inputs": [{"name": "DS_PROMETHEUS", "type": "datasource", "pluginId": "prometheus"}],
+  "templating": {"list": [
+    {"name": "namespace", "type": "query", "datasource": "beok7uikyo1kwf",
+     "query": "label_values(go_goroutines, kubernetes_namespace)"},
+    {"name": "pod", "type": "query", "datasource": "beok7uikyo1kwf",
+     "definition": "label_values(go_goroutines{kubernetes_namespace=\"$namespace\"}, kubernetes_pod_name)"}
+  ]},
+  "panels": [
+    {"title": "Goroutines", "datasource": "${DS_PROMETHEUS}",
+     "targets": [{"expr": "sum(go_goroutines{kubernetes_namespace=~\"$namespace\", kubernetes_pod_name=~\"$pod\"})"}]}
+  ]
+}

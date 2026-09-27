@@ -1,6 +1,6 @@
 # Chart-specific operational notes
 
-<!-- owner: values-review skill · last reviewed: 2026-09-10 -->
+<!-- owner: values-review skill · last reviewed: 2026-09-27 -->
 
 Hard-won specifics for individual upstream charts, moved here so
 `prod-readiness-checklist.md` stays a generic rubric. Add a section when a chart
@@ -116,3 +116,84 @@ back up, and monitor. Give each app its own database + least-privilege user
 (`SELECT`/`SHOW VIEW` for a read-only catalog; full rights on its own schema for
 an app that owns state). Passwords in per-app Secrets, referenced by both the DB
 chart (to create the user) and the consuming app.
+
+## metrics-server (verified live on kind 1.34, 2026-09-27)
+
+On kind / Docker Desktop the kubelet serving cert has no IP SANs, so the pod stays `0/1` and the APIService
+`v1beta1.metrics.k8s.io` reports `Available=False (MissingEndpoints)`. This is a **local clusters only** fix
+(kube-context `kind-*`, `docker-desktop`, `minikube`, `k3d-*`, `rancher-desktop`). It goes in the **env overlay only**
+(`environments/<env>/values/metrics-server.yaml`, via `/argocd-deploy`), commented `# local clusters only — do not copy to prod`;
+never in the catalog `charts/metrics-server/values.yaml`, and there is no base-values block for this chart:
+
+```yaml
+metrics-server:
+  args:
+    - --kubelet-insecure-tls
+```
+
+The chart appends `args` after its defaults (verified with `helm template` of chart 3.14.0: the container args end
+`--metric-resolution=15s`, `--kubelet-insecure-tls`). Destination namespace: `kube-system`. Functional check:
+`kubectl --context "$CTX" top nodes` returns data and the APIService is `Available=True`.
+
+## kube-prometheus-stack (verified live 2026-09-27; key paths re-checked against chart 91.7.0 values)
+
+Set in `charts/kube-prometheus-stack/values.yaml` (base, environment-agnostic) when the catalog entry is created, or
+ServiceMonitors/PodMonitors/Probes/ScrapeConfigs/rules from other apps are never scraped (the Prometheus CR's selector defaults to `release: <name>`):
+
+```yaml
+kube-prometheus-stack:
+  prometheus:
+    prometheusSpec:
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+      probeSelectorNilUsesHelmValues: false
+      scrapeConfigSelectorNilUsesHelmValues: false
+  grafana:
+    sidecar:
+      dashboards:
+        searchNamespace: ALL
+        folderAnnotation: grafana_folder
+        provider:
+          foldersFromFilesStructure: true
+```
+
+(`folderAnnotation` and `provider.foldersFromFilesStructure` are commented out in the chart's own values but are real
+keys of the bundled Grafana subchart; `folderAnnotation` requires `foldersFromFilesStructure`.)
+
+- CRDs: the chart bundles its CRDs (`crds.enabled`, default `true`). If a `prometheus-operator-crds` app is (or will be)
+  in the repo, set `kube-prometheus-stack.crds.enabled: false` in the same env, or the two owners fight over the CRDs.
+  Use `ServerSideApply=true` (the Application template already sets it).
+- Grafana's admin Secret is randomly generated per render; a re-run of `bootstrap/install.sh` re-renders it and the app goes
+  `OutOfSync` for a few minutes. Pin it with `grafana.admin.existingSecret` (an out-of-band Secret; also set
+  `grafana.admin.userKey` / `passwordKey` if its keys differ). `grafana.adminPassword` is also a real key but puts a
+  plaintext password in git, so do not use it for anything but a throwaway demo.
+- Light demo profile for kind (env overlay, `# local clusters only`): `alertmanager.enabled: false`,
+  `nodeExporter.enabled: false`, `kubeControllerManager.enabled: false`, `kubeScheduler.enabled: false`,
+  `kubeEtcd.enabled: false`, `kubeProxy.enabled: false` (the control-plane scrapes fail on kind).
+- Sizing for kind (illustrative, local clusters only, env overlay): the chart sets no Prometheus resources and keeps
+  `retention: 10d` by default, which is a lot for a small node. For a demo use e.g.
+  `prometheus.prometheusSpec.resources.requests: {cpu: 200m, memory: 512Mi}` and
+  `prometheus.prometheusSpec.retention: 6h`. Size real clusters from your own series count, not from these numbers.
+
+## cert-manager (`cert-manager` from https://charts.jetstack.io; key paths verified with `helm show values`, chart v1.21.2, 2026-09-27)
+
+Destination namespace: `cert-manager`. The chart ships with the CRDs **disabled** (`crds.enabled: false`; the older
+`installCRDs` is deprecated and only an alias for `crds.enabled=true` + `crds.keep=true`), so a default install has no
+CRDs, the controller starts but Issuer/Certificate resources cannot exist, and `list_crds.sh` reports nothing. Set in
+`charts/cert-manager/values.yaml` (base, environment-agnostic):
+
+```yaml
+cert-manager:
+  crds:
+    enabled: true
+    keep: true
+```
+
+Key paths: `cert-manager.crds.enabled` and `cert-manager.crds.keep`.
+`crds.keep: true` (already the chart default) adds the `helm.sh/resource-policy: keep` annotation to the CRDs so removing
+the release does not delete them; deleting a CRD garbage-collects every Certificate/Issuer, so leave it on.
+With `crds.enabled: true` the chart is a **CRD provider**: mark it ` (CRD provider)` in the catalog inventory and give its
+Application `argocd.argoproj.io/sync-wave: "-1"` so the CRDs exist before apps that create Issuers/Certificates.
+Functional check (describe; do not run without the user): apply a self-signed `ClusterIssuer` and confirm it reaches
+`Ready=True` (`kubectl --context "$CTX" get clusterissuer -o wide`); optionally issue a test `Certificate` from it.

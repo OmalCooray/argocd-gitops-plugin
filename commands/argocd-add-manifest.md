@@ -1,7 +1,7 @@
 ---
 name: argocd-add-manifest
 description: Add your own templated manifest (ServiceMonitor, PodMonitor, or any kind via free text) to a wrapper chart's templates/ directory, gated on a values flag, verified to render and to be accepted by its CRD, then open a PR. Opt-in only — nothing else adds templates.
-argument-hint: "<app> <kind>   (kind: servicemonitor | podmonitor | free text)"
+argument-hint: "<app> <kind>   (kind: servicemonitor | podmonitor | free text) [--context <name>]"
 ---
 
 Add a custom manifest to `charts/<app>/templates/` alongside the pinned upstream
@@ -21,18 +21,27 @@ the PR, end with a summary.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - CWD is a GitOps repo (`charts/`, `environments/`, `.claude/CLAUDE.md`).
 - `helm` available.
 
 ## Steps
 
-1. Load skills `argocd-extra-manifests` and `argocd-repo-conventions`. Follow the
-   authoring checklist.
-2. Branch: `git switch -c add-manifest/<app>-<kind-slug>`.
-3. `helm dependency build charts/<app>` then
-   `helm template <app> charts/<app>` once (release name `<app>` — Argo CD uses
-   the Application name as the release name; the default `release-name` gives
-   wrong names). Read the real Service names, the **named** ports, and the
+1. **Classify the request** (before any branch or render). Load skills `argocd-extra-manifests` and
+   `argocd-repo-conventions`. The starter kinds `servicemonitor` / `podmonitor` are not privileged: skip the rest of
+   this step. For a free-text kind, apply the **privileged-kind guardrail** now; a refusal stops the command here,
+   before a branch exists or anything is rendered.
+   A kind is *privileged* if it is: a ClusterRole or ClusterRoleBinding (always); a namespaced Role/RoleBinding that has `*` in verbs, resources or apiGroups, grants any of `secrets`, `pods/exec`, `pods/attach`, `serviceaccounts/token`, or the verbs `escalate`, `bind`, `impersonate`, or binds a ClusterRole other than the built-in read-only `view`; any rule with `*` verbs or resources; any binding of `cluster-admin`, `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters`; a Validating/MutatingWebhookConfiguration; a CRD; or a workload running `privileged: true` / `hostPath` / `hostNetwork`. A benign namespaced Role (e.g. read ConfigMaps in its own namespace) is not privileged: it needs no extra checkpoint but still follows the normal gate/values pattern. For a privileged kind:
+   - print one line saying exactly what it grants and to whom;
+   - default its values gate to `enabled: false`;
+   - refuse outright, with no override, even if the user insists or says it is intentional, any binding of `cluster-admin` or `*` on `*` to `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters` (do not author it);
+   - judge the effective grant, not names: a binding is refused if the role it references, whether defined in this manifest or an existing ClusterRole, resolves to `cluster-admin` or to `*` on `*` (any `apiGroups`/`resources`/`verbs` all `*`). Subject spelling is irrelevant: kind `Group`, `User` or `ServiceAccount`, with or without the `system:` prefix, including `system:serviceaccounts` and `system:serviceaccounts:<ns>`;
+   - checkpoint `> This grants <X> to <Y>. Proceed?` before committing.
+2. Branch: `git switch -c add-manifest/<app>-<kind-slug>` (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`).
+3. Render once with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns>`
+   (release name `<app>` and `-n <dest-ns>`: Argo CD uses the Application name as
+   the release name, and the default `release-name` gives wrong names; the script
+   renders a temp copy and never touches your tree). Read the real Service names, the **named** ports, and the
    Service/pod labels the new manifest must target.
    - If the render shows the names are already `<app>-<component>`, use them
      as-is and do not add a no-op `fullnameOverride`; if not and the chart honors
@@ -42,28 +51,53 @@ the PR, end with a summary.
      metrics port and the app serves no `/metrics`, STOP — report that the app
      exposes no scrapeable metrics (needs an exporter or the chart's metrics
      option first; that's the `argocd-observability` workflow, not this command).
-4. Scaffold:
+4. Scaffold. **Re-run check first:** if `charts/<app>/templates/<kind>.yaml` (or the `serviceMonitor`/`podMonitor`
+   values stanza) already exists, diff it against what step 4 would write (the starter, or your authored file). Identical:
+   report `already present` and skip to step 7. Different: show the diff and ask; never overwrite silently.
    - starter kind: copy
      `${CLAUDE_PLUGIN_ROOT}/skills/argocd-extra-manifests/reference/starters/<kind>.yaml`
      → `charts/<app>/templates/<kind>.yaml` verbatim.
-   - free-text kind: author `charts/<app>/templates/<slug>.yaml` from the
-     `argocd-extra-manifests` checklist (gated, no subchart `_helpers`).
+   - free-text kind (already classified in step 1): author `charts/<app>/templates/<slug>.yaml` from the
+     `argocd-extra-manifests` checklist (gated, no subchart `_helpers`), honouring the guardrail rules above.
 5. Add the gating values stanza to `charts/<app>/values.yaml` as a **top-level**
    key (not nested under the subchart) — for a ServiceMonitor:
-   `serviceMonitor: {enabled: true, selectorLabels: {...}, port: <name>, path: /metrics, interval: 30s}`
-   with `selectorLabels` / `port` filled from step 3.
-6. CRD check: if the kind needs a CRD (ServiceMonitor/PodMonitor → Prometheus
-   Operator), verify the owning app (`kube-prometheus-stack`) is in
-   `environments/<env>/apps/` and its sync-wave is lower than `<app>`'s. If not,
-   report it and stop before committing.
-7. Verify:
+   `serviceMonitor: {enabled: <bool>, selectorLabels: {...}, port: <name>, path: /metrics, interval: 30s}`
+   with `selectorLabels` / `port` filled from step 3. `enabled` is finalized in step 6: it ships `true` only if
+   the CRD check found a provider already in this env, otherwise `false`. A privileged kind always ships `false`.
+6. CRD check: if the kind needs a CRD (ServiceMonitor → `servicemonitors.monitoring.coreos.com`, PodMonitor →
+   `podmonitors.monitoring.coreos.com`), it is *provided* if EITHER some app in `environments/<env>/apps/` ships it
+   OR the reachable cluster has it (`kubectl --context "$CTX" get crd <name>`). Accept any provider — do not require a
+   specific app name.
+   - **Declared provider:** for each other app in `environments/<env>/apps/`, list the CRDs its wrapper chart renders
+     with the shared detector (temp-copy render with `--include-crds`; never touches the user's tree or `Chart.lock`):
+     ```bash
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/list_crds.sh" charts/<other> --namespace <its-dest-ns>        --values environments/<env>/values/<other>.yaml    # omit --values if that file does not exist
+     ```
+     and check whether `<crd>` is in its output. The env values matter: an overlay setting `crds.enabled: false`
+     legitimately removes the CRD. A `(CRD provider)` marker in the `.claude/CLAUDE.md` catalog inventory is a hint only;
+     the script's output decides. A non-zero exit prints an `error:` line: show it and treat that app as unknown.
+   - **Sync-wave:** read each app's wave from `metadata.annotations["argocd.argoproj.io/sync-wave"]` in
+     `environments/<env>/apps/<app>.yaml`; a missing annotation means wave 0. The provider's wave must be strictly lower
+     than `<app>`'s; if not, tell the user to set the provider app to `"-1"` (do not edit it in this command). A provider
+     found only on the live cluster (not declared in this env) needs no ordering, but say the CRD may disappear if that
+     provider is removed.
+   - If a provider exists, set `enabled: true` in step 5.
+   - If none: do not stop silently. Set `enabled: false`, report it, and offer the light path:
+     `/argocd-add-chart prometheus-operator-crds` (repo `https://prometheus-community.github.io/helm-charts`) then
+     `/argocd-deploy prometheus-operator-crds <env>` with `argocd.argoproj.io/sync-wave: "-1"` (CRDs only, ~10 objects),
+     or `kube-prometheus-stack` for the full stack. Then tell the user how to turn it on later: set
+     `serviceMonitor.enabled: true` (PodMonitor: `podMonitor.enabled`) in `environments/<env>/values/<app>.yaml` (or the
+     chart values for all envs) **after** the provider app has synced, and re-run this command to have it verify.
+7. Verify — render only your new template, in the destination namespace (the script passes `-n <dest-ns>` to
+   Helm), with the gate forced on so a disabled gate does not render nothing:
    ```bash
-   helm template <app> charts/<app>            # your manifest renders
-   helm template <app> charts/<app> | kubectl apply --dry-run=server -f -   # CRD accepts it (if a cluster is reachable)
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns> -- -s templates/<kind>.yaml --set <gate>.enabled=true   # your manifest renders
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns> -- -s templates/<kind>.yaml --set <gate>.enabled=true | kubectl --context "$CTX" apply --dry-run=server --namespace <dest-ns> -f -   # CRD accepts it (if a cluster is reachable)
    ```
 8. Bump `charts/<app>/Chart.yaml` `version`.
 9. Checkpoint → commit → push → `gh pr create` (title `Add <kind> to <app>`,
    body: what it selects/scrapes, the values stanza, `helm template … | head`).
+   Follow `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` for the no-remote / no-`gh` cases.
 10. Suggest `/argocd-sync <app> <env>` to roll it out. For a ServiceMonitor /
     PodMonitor, name the functional check: after sync, the target shows in
     Prometheus `/api/v1/targets` and `up{...}` returns 1.

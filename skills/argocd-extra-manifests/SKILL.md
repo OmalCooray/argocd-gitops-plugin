@@ -5,6 +5,8 @@ description: Add your own templated Kubernetes manifests (ServiceMonitor, PodMon
 
 # Extra manifests in a wrapper chart
 
+> `$CTX` and `$ARGOCD_NS` come from `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; the calling command must have resolved them. If they are unset, run that procedure first.
+
 ## Mechanism
 
 A wrapper chart (`charts/<app>/`) is itself a real Helm chart. It can carry its
@@ -52,7 +54,8 @@ charts/<app>/
   `charts/<app>/`. A shared middleware every app uses → the controller's wrapper
   (`charts/traefik/`). Cluster-wide alert rules → `charts/kube-prometheus-stack/`.
 - **CRD-exists is a sync-wave concern.** A ServiceMonitor needs the
-  Prometheus-Operator CRD (from the `kube-prometheus-stack` app). That app must
+  Prometheus-Operator CRD (from whichever app or the cluster provides it; light path: a
+  `prometheus-operator-crds` app at sync-wave `-1`, or `kube-prometheus-stack`). A declared provider app must
   sit at a lower `argocd.argoproj.io/sync-wave` than apps that ship its CRs. This
   is ordering via `argocd.argoproj.io/sync-wave` on the Applications (the operator
   app at a lower wave), not via where files sit. See
@@ -97,12 +100,22 @@ is global) but compute names from the wrong (wrapper) context/values.
      interval: 30s
    ```
 4. Never `include` a subchart helper (step "Template context").
-5. Verify: `helm dependency build charts/<app>` (or `helm dependency update
-   charts/<app>` if there is no `Chart.lock` yet) →
-   `helm template <app> charts/<app>` renders your manifest. If a cluster with
+5. Verify: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns>`
+   renders your manifest (it builds dependencies in a temp copy with a private Helm repo config). If a cluster with
    the CRD is reachable:
-   `helm template <app> charts/<app> | kubectl apply --dry-run=server -f -`.
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns> | kubectl --context "$CTX" apply --dry-run=server -f -`.
 6. Bump `charts/<app>/Chart.yaml` `version`.
+
+## Privileged kinds
+
+Applies to any free-text kind, including extra RBAC.
+
+A kind is *privileged* if it is: a ClusterRole or ClusterRoleBinding (always); a namespaced Role/RoleBinding that has `*` in verbs, resources or apiGroups, grants any of `secrets`, `pods/exec`, `pods/attach`, `serviceaccounts/token`, or the verbs `escalate`, `bind`, `impersonate`, or binds a ClusterRole other than the built-in read-only `view`; any rule with `*` verbs or resources; any binding of `cluster-admin`, `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters`; a Validating/MutatingWebhookConfiguration; a CRD; or a workload running `privileged: true` / `hostPath` / `hostNetwork`. A benign namespaced Role (e.g. read ConfigMaps in its own namespace) is not privileged: it needs no extra checkpoint but still follows the normal gate/values pattern. For a privileged kind:
+- print one line saying exactly what it grants and to whom;
+- default its values gate to `enabled: false`;
+- refuse outright, with no override, even if the user insists or says it is intentional, any binding of `cluster-admin` or `*` on `*` to `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters` (do not author it);
+- judge the effective grant, not names: a binding is refused if the role it references, whether defined in this manifest or an existing ClusterRole, resolves to `cluster-admin` or to `*` on `*` (any `apiGroups`/`resources`/`verbs` all `*`). Subject spelling is irrelevant: kind `Group`, `User` or `ServiceAccount`, with or without the `system:` prefix, including `system:serviceaccounts` and `system:serviceaccounts:<ns>`;
+- checkpoint `> This grants <X> to <Y>. Proceed?` before committing.
 
 ## References
 

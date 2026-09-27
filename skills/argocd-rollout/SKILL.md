@@ -5,6 +5,8 @@ description: Drive one Argo CD application all the way to Synced + Healthy + act
 
 # Rollout to healthy
 
+> `$CTX` and `$ARGOCD_NS` come from `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; the calling command must have resolved them. If they are unset, run that procedure first.
+
 A merged PR is not a finished deploy. This is the loop that takes an Argo CD
 `Application` from "declared" to "the app works", following the interaction
 contract (`${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`) throughout —
@@ -30,23 +32,40 @@ trigger sync ──▶ bounded watch ──▶ Healthy? ──yes──▶ funct
 
 ### 1. Trigger the sync
 
-If the app has `syncPolicy.automated`, a `hard` refresh is usually enough:
+Default trigger — a hard refresh (harmless; starts no operation on an app that is already in sync):
 
 ```bash
-kubectl -n <argocd-ns> annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context "$CTX" -n "$ARGOCD_NS" annotate application <app> argocd.argoproj.io/refresh=hard --overwrite
 ```
 
-To force a sync explicitly without the `argocd` CLI, patch the operation:
+Automated apps (`syncPolicy.automated`) converge on their own after a refresh. Do not call an
+automated app stuck just because it is `OutOfSync` right after the refresh: wait until 3 consecutive
+probes (~60 s) show no operation started (refresh-to-sync latency).
+
+**Escalation ladder** — go here straight after the refresh if the app is `OutOfSync` with **no running
+operation** and `syncPolicy.automated` is absent/disabled, or the last `operationState.phase` is `Failed`;
+for an automated app, go here after the 3-probe wait above. Every rung is behind a **second checkpoint**
+(`> About to sync <app>: this applies the desired state to the cluster. Proceed?`).
+
+1. A plain sync (no force; this is what `argocd app sync` does). Never pin `revision: HEAD` (it ignores `spec.sources` and a pinned SHA).
+   Omitting `revision`/`revisions` makes Argo CD use each source's `targetRevision`.
 
 ```bash
-kubectl -n <argocd-ns> patch application <app> --type merge -p \
-  '{"operation":{"initiatedBy":{"username":"argocd-rollout"},"sync":{"revision":"HEAD","syncStrategy":{"apply":{"force":true}}}}}'
+kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p '{"operation":{"initiatedBy":{"username":"argocd-rollout"},"sync":{"syncStrategy":{"apply":{}}}}}'
+```
+
+2. Only if the plain sync fails on an immutable-field/selector error, force it, saying in the second
+   checkpoint: `> About to force-sync <app>: this can DELETE and RECREATE resources that have immutable fields. Proceed?`
+
+```bash
+kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p '{"operation":{"initiatedBy":{"username":"argocd-rollout"},"sync":{"syncStrategy":{"apply":{"force":true}}}}}'
 ```
 
 ### 2. Bounded watch
 
-Check **at a fixed cadence for a stated ceiling** — e.g. up to 10 checks, ~20 s
-apart (~3–4 min). Each check prints one line:
+Check **at a fixed cadence for a stated ceiling**: run at most 4 probes (~80 s,
+~20 s apart) per tool call so no call exceeds the 2-minute tool timeout; repeat
+calls up to the **12-minute wall-clock ceiling across all fix cycles**. Each check prints one line:
 
 ```
 [n] <app>  <sync>/<health>  <op message or "">  pods <ready>/<total>
@@ -54,16 +73,16 @@ apart (~3–4 min). Each check prints one line:
 
 Read from:
 ```bash
-kubectl -n <argocd-ns> get application <app> \
+kubectl --context "$CTX" -n "$ARGOCD_NS" get application <app> \
   -o jsonpath='{.status.sync.status}/{.status.health.status} | {.status.operationState.phase} | {.status.operationState.message}'
-kubectl -n <dest-ns> get pods
+kubectl --context "$CTX" -n <dest-ns> get pods
 ```
 
 Stop the watch as soon as one of these is true:
 - **Healthy + Synced** → go to step 4.
 - **Stuck** (per `argocd-troubleshooting`: `CrashLoopBackOff` / `ImagePullBackOff`
   / `CreateContainerConfigError`; same `operationState.message` for the whole
-  window; `operationState.phase: Failed`; `OutOfSync` with no running op) → step 3.
+  window; `operationState.phase: Failed`; `OutOfSync` with no running op → the step 1 escalation ladder first, then step 3 if it still fails) → step 3.
 - **Ceiling reached, still Progressing** on image pulls / init containers with no
   errors → report "still rolling out, nothing wrong" and hand back with the exact
   thing it's waiting on. Do not loop forever.
@@ -73,16 +92,17 @@ Stop the watch as soon as one of these is true:
 - Run the `argocd-troubleshooting` flow: drill to the failing object, match the
   signature, name the **root cause + evidence + fix**.
 - The fix is a **git change** (a values key, a manifest annotation, a missing
-  Secret created out of band). Make it on a branch, `helm template` to confirm it
-  renders, open a PR (checkpoint before push), merge (checkpoint).
+  Secret created out of band). Make the fix with the `--fix` flow in `commands/argocd-doctor.md` (branch
+  `fix/<app>-<slug>`, one values file, render via
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" ...`, stage by path, checkpoint, PR), then merge (checkpoint).
 - **Deadlocked sync** (op message "waiting for healthy state of X" where X can
   never be healthy until the fix lands): after merging, clear the stuck op, then
   re-trigger:
   ```bash
-  kubectl -n <argocd-ns> patch application <app> --type merge -p '{"operation":null}'
-  kubectl -n <argocd-ns> patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
+  kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type merge -p '{"operation":null}'
+  kubectl --context "$CTX" -n "$ARGOCD_NS" patch application <app> --type json -p '[{"op":"remove","path":"/status/operationState"}]'
   ```
-- Go back to step 1. Cap the fix cycles (e.g. 4). If it's still not converging,
+- Go back to step 1. Cap the fix cycles at 4 (hard cap). If it's still not converging,
   stop and report every root cause found so far + what you tried — do not thrash.
 
 ### 4. Functional check — Healthy ≠ working

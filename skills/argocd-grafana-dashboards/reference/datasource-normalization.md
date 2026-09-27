@@ -44,7 +44,20 @@ not resolve against an arbitrary Grafana. `fetch_dashboard.py` rewrites them.
    | `{"type": "prometheus"}` / `{}` (no type) | `{"type": "prometheus", "uid": "${datasource}"}` |
    | `null` | `null` (unchanged — panel inherits) |
    | `{"type": "loki", ...}` / `"-- Mixed --"` | unchanged |
-4. Add `"__source": "<origin>, fetched <date>"`.
+4. On `templating.list[*]` entries with `type: query`, a **bare-string**
+   `datasource` (a uid or name that is not `${...}`, not a built-in such as
+   `-- Mixed --`, and not a non-prometheus `__inputs` name) becomes
+   `"${datasource}"`; that uid would not exist on another Grafana.
+5. Add `"__source": "<origin>, fetched <date>"` (local file: basename only).
+
+CLI extras: `--out PATH` (atomic write, LF), `--labels` (list label names used),
+`--relabel OLD=NEW` (repeatable label rename). Both label flags use one scanner
+over `expr` / `query` / `definition` strings, with string literals masked first,
+and cover only: matchers inside `{...}`; `by` / `without` / `on` / `ignoring` /
+`group_left` / `group_right` lists; the last argument of
+`label_values(<metric>, <label>)`. In `legendFormat`, `{{ label }}` templates are
+covered. Not covered: `label_replace` / `label_join` labels (string literals) and
+the one-argument `label_values(<label>)` form.
 
 A dashboard with **no** prometheus reference anywhere → the script exits non-zero
 (it is not a fit for this plugin).
@@ -78,7 +91,7 @@ A dashboard with **no** prometheus reference anywhere → the script exits non-z
   be told to watch all namespaces:
   `grafana.sidecar.dashboards.searchNamespace: ALL` (in the block above).
   kube-prometheus-stack often ships this defaulted to `ALL` already — verify with
-  `kubectl -n monitoring get deploy kube-prometheus-stack-grafana -o yaml | grep -A2 SEARCH`
+  `kubectl --context "$CTX" -n monitoring get deploy kube-prometheus-stack-grafana -o yaml | grep -A2 SEARCH`
   (or inspect the sidecar container's env). If it is not `ALL`, per-app
   ConfigMaps are silently ignored.
 - Each **data key** in the ConfigMap becomes one dashboard. Multi-key ConfigMaps

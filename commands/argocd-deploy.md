@@ -1,7 +1,7 @@
 ---
 name: argocd-deploy
 description: Deploy a catalog app to an environment — generate environments/<env>/apps/<app>.yaml (multi-source Argo CD Application) plus an empty per-env values overlay, verify, and open a PR.
-argument-hint: "<app-name> <environment-name>"
+argument-hint: "<app-name> <environment-name> [--context <name>]"
 ---
 
 Wire an existing catalog chart into an environment.
@@ -18,6 +18,7 @@ summary.
 
 ## Preconditions
 
+0. **Resolve the target:** follow `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md`; use its `CTX` and `ARGOCD_NS` in every command below. Accept an optional `--context <name>` argument.
 - CWD is a GitOps repo. `charts/<app>/Chart.yaml` exists — if not, tell the user
   to run `/argocd-add-chart` first.
 - `environments/<env>/` exists. If it does not: Phase 1 has no command to add an
@@ -26,13 +27,14 @@ summary.
   `/argocd-init-repo` for a fresh repo. Then retry.
 - If `environments/<env>/apps/<app>.yaml` already exists, stop — the app is
   already deployed to that env; edits go through a normal PR, not this command.
-- Read `.claude/CLAUDE.md` for `GITOPS_REPO_URL`, `ARGOCD_NAMESPACE`,
-  `DEST_SERVER`, and the default branch.
+- Read `.claude/CLAUDE.md`: `GITOPS_REPO_URL` = the "GitOps repo URL" line,
+  `ARGOCD_NAMESPACE` = "Argo CD namespace", `DEST_SERVER` = "Destination cluster for
+  <env>", default branch = "Default branch".
 
 ## Steps
 
 1. Load skill `argocd-repo-conventions`.
-2. `git switch -c deploy/<app>-<env>`.
+2. `git switch -c deploy/<app>-<env>`. (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`)
 3. Determine `TARGET_REVISION`:
    - dev-like environment (name in {`dev`, `data-platform`, `staging`} or the
      repo's single env) → the default branch.
@@ -43,17 +45,47 @@ summary.
      promote future changes.
    - Otherwise ask.
 4. Ask for the destination namespace (default: `<app>`).
-5. Render `${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl` →
-   `environments/<env>/apps/<app>.yaml` with `APP_NAME`, `ARGOCD_NAMESPACE`,
-   `GITOPS_REPO_URL`, `TARGET_REVISION` (the value computed in step 3), `ENV_NAME`,
-   `NAMESPACE`, `DEST_SERVER`.
+5. Render with the renderer script (errors on a missing or unused variable). Read
+   from `.claude/CLAUDE.md`: `GITOPS_REPO_URL` from the "GitOps repo URL" line,
+   `ARGOCD_NAMESPACE` from "Argo CD namespace", `DEST_SERVER` from "Destination
+   cluster for <env>". `TARGET_REVISION` is the value computed in step 3;
+   `<app-namespace>` is the destination namespace from step 4:
+   ```bash
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/application.yaml.tmpl" environments/<env>/apps/<app>.yaml \
+     APP_NAME=<app> ENV_NAME=<env> NAMESPACE=<app-namespace> ARGOCD_NAMESPACE=<argocd-namespace> \
+     GITOPS_REPO_URL=<gitops-repo-url> TARGET_REVISION=<rev> DEST_SERVER=<server>
+   ```
+5a. **Sync-wave for CRD providers.** Decide whether `<app>` provides CRDs: (1) its row in the `.claude/CLAUDE.md`
+   catalog inventory carries the `(CRD provider)` marker (set by `/argocd-add-chart`); or, when the marker is absent
+   (chart added by hand or before this feature), (2) re-run the detector on it:
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/list_crds.sh" charts/<app> --namespace <app-namespace>      --values environments/<env>/values/<app>.yaml   # omit --values if that file does not exist yet
+   ```
+   (non-empty output = provider; a non-zero exit prints an `error:` line: show it and ask the user). Known CRD/operator
+   charts (`prometheus-operator-crds`, `cert-manager`, `kube-prometheus-stack`) are only a fallback hint if the script
+   cannot run. If `<app>` provides CRDs, ask
+   `> This app provides CRDs. Add sync-wave "-1" so it syncs before apps that use them? (yes/no)` (default yes).
+   On yes, after rendering, add under `metadata.annotations:` of `environments/<env>/apps/<app>.yaml` (the template has
+   no annotations slot; add the key `annotations:` between `namespace:` and `finalizers:` only if it is absent):
+   ```yaml
+   metadata:
+     annotations:
+       argocd.argoproj.io/sync-wave: "-1"
+   ```
+   Idempotence: read `metadata.annotations["argocd.argoproj.io/sync-wave"]` first; if already `"-1"` do nothing, if
+   another value ask before changing it, never duplicate the key. Waves order lowest first, so the provider's `"-1"`
+   must be LOWER than the consumers' (default `0` when the annotation is absent). Confirm `ServerSideApply=true` is in
+   `syncOptions` (the template sets it; CRDs are large and need it). Do not edit the template's placeholders.
 6. Create `environments/<env>/values/<app>.yaml` if absent, with content:
    ```yaml
    # Per-environment overrides for <app> in <env>. Nest under the chart name.
    ```
+   If a chart-notes section (`${CLAUDE_PLUGIN_ROOT}/skills/values-review/reference/chart-notes.md`) names a
+   "local clusters only" override for this chart (e.g. metrics-server `--kubelet-insecure-tls`) and `$CTX` is a local
+   cluster, put it here, commented `# local clusters only — do not copy to prod`.
 7. Verify:
    ```bash
-   kubectl apply --dry-run=client -f environments/<env>/apps/<app>.yaml
+   kubectl --context "$CTX" apply --dry-run=client -f environments/<env>/apps/<app>.yaml
    ```
    (If Argo CD CRDs aren't on the reachable cluster, fall back to a YAML parse
    check: `python -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" environments/<env>/apps/<app>.yaml`.)
@@ -65,7 +97,8 @@ summary.
    - title: `Deploy <app> to <env>`
    - body: source paths, target revision (and pin caveat for prod), destination
      namespace, and `helm template charts/<app> -f environments/<env>/values/<app>.yaml | head -60`.
-   - `gh` missing → print branch + PR body, stop.
+   - No remote, or `gh` missing/unauthenticated: follow
+     `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md`.
 10. Print the PR URL (or manual steps).
 11. **Drive it to healthy.** Once the PR is merged (checkpoint: ask if you should
     merge it now, or wait for them to), run the `/argocd-sync <app> <env>` flow:

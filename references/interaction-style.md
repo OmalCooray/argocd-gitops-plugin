@@ -11,6 +11,8 @@ in control of the big moves. This overrides any default toward "just do it".
 2. **Show the command, then its meaningful output.** Put commands in a fenced
    block. After running, show the lines that matter (status, names, errors) —
    not a 200-line dump.
+   Scripts in this plugin are run as `python "…"`; if `python` is not on PATH use
+   `python3`. Always quote `${CLAUDE_PLUGIN_ROOT}` (paths may contain spaces).
 
 3. **Run long operations in the foreground.** Never launch a silent background
    job for an install, a sync, or a wait. If something takes minutes:
@@ -20,7 +22,7 @@ in control of the big moves. This overrides any default toward "just do it".
      a stated window), printing one status line per probe, and stop as soon as
      it's ready or clearly stuck — never an open-ended loop.
 
-4. **No polling loops for health.** Inspect once, decide progressing-vs-stuck
+4. **No polling loops for health.** (Sanctioned exception: the rollout skill's *bounded* watch — at most 4 probes ≈80 s per tool call, 12 minutes total; the rule prohibits open-ended waits and `sleep` loops.) Inspect once, decide progressing-vs-stuck
    (see `argocd-troubleshooting`), report. If it's still legitimately
    progressing, say what it's waiting on and hand back — don't sit and spin.
 
@@ -35,9 +37,18 @@ in control of the big moves. This overrides any default toward "just do it".
 - `kubectl delete` of anything, or a prune
 - `git push` + opening a PR (show the branch name and PR title first)
 - creating a GitHub repo
+- adding a deploy key or credential Secret
+- acting on a cluster whose kube-context the user did not name — run `${CLAUDE_PLUGIN_ROOT}/references/target-resolution.md` first and print the `Target:` line.
 
 A checkpoint is `> About to <X>. Proceed?` — not a paragraph. If the person
 already said "go ahead and don't ask", honour that for the rest of the run.
+
+## Branch names on re-run
+
+Before `git switch -c <name>`, check whether `<name>` already exists locally (`git branch --list <name>`) or on
+origin (`git ls-remote --heads origin <name>`). Never reuse it blindly. If it is already merged (`git branch --merged
+<default-branch>` lists it), delete the local branch and pick a fresh name by suffixing `-2` (then `-3`...). If it is NOT
+merged, stop and ask what to do: it may hold someone's work.
 
 ## Never
 

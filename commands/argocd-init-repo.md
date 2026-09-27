@@ -16,11 +16,16 @@ creating the GitHub repo, end with a summary and the next command.
 - `$2` — first environment name (optional, default `default`). Kebab-case.
 - Ask the user (AskUserQuestion) for anything not derivable:
   1. Target directory to create the repo in (default: a sibling of the CWD).
-  2. GitHub owner/org (default: `OmalCooray`).
-  3. Argo CD namespace (default: `argocd`).
-  4. Destination cluster API (default: `https://kubernetes.default.svc`).
-  5. Default branch name (default: `master`).
-  6. Create + push the GitHub repo now? (yes/no; needs `gh` authenticated.)
+  2. GitHub owner/org — default from `gh api user --jq .login` (if `gh` is
+     unauthenticated, ask for the owner — no default — and step 6 will print the
+     manual commands).
+  3. Argo CD namespace (default: `argocd`) — this is `<argocd-namespace>` below.
+  4. Destination cluster API (default: `https://kubernetes.default.svc`) — this is `<server>` below.
+  5. Default branch — default from `git config --get init.defaultBranch`, else `main`.
+  6. Visibility (`private` | `public`; default `private`). **Private repos need
+     Argo CD credentials — `/argocd-bootstrap` sets them up with a read-only deploy
+     key.** Public repos are pulled anonymously.
+  7. Create + push the GitHub repo now? (yes/no; needs `gh` authenticated.)
 
 ## Steps
 
@@ -41,17 +46,22 @@ creating the GitHub repo, end with a summary and the next command.
      .gitignore
      .gitattributes
    ```
-3. Render from `${CLAUDE_PLUGIN_ROOT}/templates/`:
-   - `root.yaml.tmpl` → `environments/<env>/root.yaml`
-     (vars: `ENV_NAME`, `ARGOCD_NAMESPACE`, `GITOPS_REPO_URL`, `DEFAULT_BRANCH`,
-     `DEST_SERVER`). `GITOPS_REPO_URL` = `https://github.com/<owner>/<name>`.
-   - `gitops-README.md.tmpl` → `README.md` (vars: `GITOPS_REPO_NAME`, `ENV_NAME`).
-   - `gitops-CLAUDE.md.tmpl` → `.claude/CLAUDE.md` (all repo-fact vars; note it
-     needs `DEFAULT_BRANCH` — the branch name — not `TARGET_REVISION`).
-   - `CODEOWNERS.tmpl` → `CODEOWNERS` (vars: `ENV_NAME`, `GITHUB_OWNER` — the
-     owner/org from input 2).
-
-   `DEFAULT_BRANCH` is the branch name from input 5 (default `master`).
+3. Render each template with the renderer script (it fails on a missing or unused
+   variable, and writes UTF-8 with LF newlines). Values:
+   - `<argocd-namespace>` = input 3 (Argo CD namespace); `<server>` = input 4
+     (destination cluster API); `<branch>` = input 5; `<owner>` = input 2.
+   - `<gitops-repo-url>` = `https://github.com/<owner>/<name>` for a `public` repo and
+     `git@github.com:<owner>/<name>.git` for a `private` repo (deploy-key access needs
+     the SSH form).
+   ```bash
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/root.yaml.tmpl" environments/<env>/root.yaml \
+     ENV_NAME=<env> ARGOCD_NAMESPACE=<argocd-namespace> GITOPS_REPO_URL=<gitops-repo-url> DEFAULT_BRANCH=<branch> DEST_SERVER=<server>
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/gitops-README.md.tmpl" README.md GITOPS_REPO_NAME=<name>
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/gitops-CLAUDE.md.tmpl" .claude/CLAUDE.md \
+     ENV_NAME=<env> ARGOCD_NAMESPACE=<argocd-namespace> GITOPS_REPO_URL=<gitops-repo-url> DEFAULT_BRANCH=<branch> DEST_SERVER=<server>
+   python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/CODEOWNERS.tmpl" CODEOWNERS ENV_NAME=<env> GITHUB_OWNER=<owner>
+   ```
+   (`bootstrap/install.sh` is rendered later by `/argocd-bootstrap`.)
 4. `.gitignore` content:
    ```
    charts/*/charts/
@@ -61,12 +71,23 @@ creating the GitHub repo, end with a summary and the next command.
 5. `git init -b <branch>`, `git add -A`,
    `git commit -m "chore: scaffold GitOps repo"` (add the Co-Authored-By trailer).
 6. If the user said yes to GitHub:
-   - `gh repo create <owner>/<name> --private --source . --remote origin --push`
-   - If `gh` is missing or unauthenticated, print the manual commands and stop.
+   - If `VISIBILITY` is `public`, print `This repository will be PUBLIC`.
+   - Checkpoint (both visibilities):
+     `> About to create <private|PUBLIC> repo <owner>/<name> and push <branch>. Proceed?`
+   - `gh repo create <owner>/<name> --$VISIBILITY --source . --remote origin --push`
+     (`$VISIBILITY` is `private` or `public`).
+   - `git remote set-url origin <gitops-repo-url>` so `origin` matches the URL recorded
+     in the repo (SSH for private, https for public); later remote checks / pushes
+     then use the same URL Argo CD does.
+   - If `gh` is missing or unauthenticated, or the push cannot run, follow
+     `${CLAUDE_PLUGIN_ROOT}/references/no-remote-fallback.md` and print the manual commands, then stop:
+     `gh repo create <owner>/<name> --<visibility> --source . --remote origin --push`,
+     or, with an empty repo created in the GitHub UI,
+     `git remote add origin <gitops-repo-url> && git push -u origin <branch>`.
 7. Print next steps: `/argocd-bootstrap`, then `/argocd-add-chart`, then
    `/argocd-deploy`.
 
 ## Notes
 
-- Never force-push. Never create the repo public unless the user explicitly asks.
+- Never force-push. Never create the repo public unless the user explicitly chose `public`.
 - Creating the GitHub repo is a side-effecting action — only after explicit yes.
