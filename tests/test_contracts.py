@@ -511,3 +511,34 @@ def test_onboarder_review_fixes():
     assert "prod" in ov and "production" in ov and "in-cluster destination" in ov
     s = read("skills/helm-chart-onboarding/SKILL.md")
     assert "updates the user's repo list" not in s
+
+
+def test_chart_notes_and_crd_provider_handling():
+    n = read("skills/values-review/reference/chart-notes.md")
+    for needle in ("--kubelet-insecure-tls", "serviceMonitorSelectorNilUsesHelmValues",
+                   "crds.enabled", "folderAnnotation", "foldersFromFilesStructure", "existingSecret",
+                   "last reviewed: 2026-09-27"):
+        assert needle in n, needle
+    headings = [ln for ln in n.splitlines() if ln.startswith("## ")]
+    assert any(h.startswith("## metrics-server") for h in headings)
+    assert any(h.startswith("## kube-prometheus-stack") for h in headings)
+    ac = read("commands/argocd-add-chart.md")
+    assert "CustomResourceDefinition" in ac and "--include-crds" in ac and "mktemp" in ac
+    assert "local clusters only" in ac
+    dp = read("commands/argocd-deploy.md")
+    assert "sync-wave" in dp and "CRD" in dp and 'metadata.annotations["argocd.argoproj.io/sync-wave"]' in dp
+    ex = read("skills/argocd-extra-manifests/SKILL.md")
+    assert "from the `kube-prometheus-stack` app" not in ex
+
+
+def test_every_referenced_chart_notes_section_exists():
+    notes = read("skills/values-review/reference/chart-notes.md")
+    headings = [ln[3:].strip().lower() for ln in notes.splitlines() if ln.startswith("## ")]
+    pat = re.compile(r"([\w\-]+) section of\s+`[^`]*chart-notes\.md`")
+    found = []
+    for rel in scanned_files():
+        for m in pat.finditer(re.sub(r"\s+", " ", read(rel))):
+            found.append((rel, m.group(1)))
+    assert found, "no chart-notes section references parsed"
+    for rel, name in found:
+        assert any(h.startswith(name.lower()) for h in headings), (rel, name)

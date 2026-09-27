@@ -44,6 +44,30 @@ opening the PR, end with a summary.
    ```
    If a cluster is reachable also run
    `helm template charts/<app> | kubectl --context "$CTX" apply --dry-run=client -f -`.
+5a. **Chart notes.** If `${CLAUDE_PLUGIN_ROOT}/skills/values-review/reference/chart-notes.md` has a section for
+   this chart (heading starts with the chart name, e.g. `metrics-server`, `kube-prometheus-stack`), read it and apply
+   its **base-values block** to `charts/<app>/values.yaml`. Apply only the environment-agnostic parts. Anything the
+   note marks "local clusters only" (e.g. metrics-server `--kubelet-insecure-tls`, the kube-prometheus-stack light
+   demo profile) never goes in the catalog: tell the user it belongs in the env overlay and is added by
+   `/argocd-deploy`. Re-run step 5's `helm lint` afterwards.
+5b. **CRD ownership check.** Render in a TEMP COPY (`helm dependency build` rewrites `Chart.lock`, and `helm template`
+   skips a chart's `crds/` directory without `--include-crds`) and list the CRD names. Define once, in one Bash call:
+   ```bash
+   crds() {  # crds <catalog-dir-name> <namespace>  ->  sorted CRD names
+     tmp="$(mktemp -d)"; cp -r "charts/$1" "$tmp/"; helm dependency build "$tmp/$1" >/dev/null
+     helm template "$1" "$tmp/$1" -n "$2" --include-crds | awk 'function f(){if(k&&n!="")print n;k=0;n="";m=0} /^---/{f();next} /^kind: CustomResourceDefinition[ 	]*$/{k=1} /^metadata:/{m=1;next} m&&/^  name:/{n=$2;m=0;next} /^[A-Za-z]/{m=0} END{f()}' | sort
+   }
+   ```
+   If the list is empty, nothing more to do. Otherwise this app is a **CRD provider**: tell the user, and say that
+   `/argocd-deploy` will offer a sync-wave `"-1"` for it. Then check for overlap with every other catalog chart:
+   ```bash
+   o="$(mktemp -d)"; crds <app> <ns> > "$o/mine"; cat "$o/mine"      # the CRD names this app renders
+   for c in charts/*; do c="${c#charts/}"; [ "$c" = "<app>" ] && continue
+     crds "$c" "$c" > "$o/other"; comm -12 "$o/mine" "$o/other" | sed "s/^/$c also renders: /"; done
+   ```
+   (`<ns>` is only a render namespace for the overlap comparison, it does not affect CRD names.) If any line prints, warn that two apps would own the
+   same CRDs and propose `<chart>.crds.enabled: false` (read `helm show values` for the exact key) on the *consumer* side,
+   in that consumer's env overlay. Do not edit the other chart here.
 6. Commit `charts/<app>/Chart.yaml`, `charts/<app>/values.yaml`,
    `charts/<app>/Chart.lock`. (Do not commit `charts/<app>/charts/*.tgz`.)
 7. Update `.claude/CLAUDE.md` catalog inventory table; commit that too.
@@ -60,6 +84,7 @@ opening the PR, end with a summary.
 
 ## Notes
 
+- CRD names are listed by a text filter (not a YAML parser: real CRDs contain YAML tags PyYAML rejects); it needs no `jq`.
 - Never deploy here. Deployment is `/argocd-deploy <app> <env>`.
 - Never commit to the default branch directly.
 - Never adds `charts/<app>/templates/`. To add your own manifests (ServiceMonitor, IngressRoute, …) use `/argocd-add-manifest`.

@@ -54,7 +54,8 @@ charts/<app>/
   `charts/<app>/`. A shared middleware every app uses → the controller's wrapper
   (`charts/traefik/`). Cluster-wide alert rules → `charts/kube-prometheus-stack/`.
 - **CRD-exists is a sync-wave concern.** A ServiceMonitor needs the
-  Prometheus-Operator CRD (from the `kube-prometheus-stack` app). That app must
+  Prometheus-Operator CRD (from whichever app or the cluster provides it; light path: a
+  `prometheus-operator-crds` app at sync-wave `-1`, or `kube-prometheus-stack`). A declared provider app must
   sit at a lower `argocd.argoproj.io/sync-wave` than apps that ship its CRs. This
   is ordering via `argocd.argoproj.io/sync-wave` on the Applications (the operator
   app at a lower wave), not via where files sit. See

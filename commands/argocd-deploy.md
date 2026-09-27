@@ -55,10 +55,28 @@ summary.
      APP_NAME=<app> ENV_NAME=<env> NAMESPACE=<app-namespace> ARGOCD_NAMESPACE=<argocd-namespace> \
      GITOPS_REPO_URL=<gitops-repo-url> TARGET_REVISION=<rev> DEST_SERVER=<server>
    ```
+5a. **Sync-wave for CRD providers.** If the catalog chart renders `CustomResourceDefinition`s (the CRD ownership check
+   in `/argocd-add-chart` step 5b; re-run it if unsure) or is a known operator/CRD chart (`prometheus-operator-crds`,
+   `cert-manager`, `kube-prometheus-stack`), ask
+   `> This app provides CRDs. Add sync-wave "-1" so it syncs before apps that use them? (yes/no)` (default yes).
+   On yes, after rendering, add under `metadata.annotations:` of `environments/<env>/apps/<app>.yaml` (the template has
+   no annotations slot; add the key `annotations:` between `namespace:` and `finalizers:` only if it is absent):
+   ```yaml
+   metadata:
+     annotations:
+       argocd.argoproj.io/sync-wave: "-1"
+   ```
+   Idempotence: read `metadata.annotations["argocd.argoproj.io/sync-wave"]` first; if already `"-1"` do nothing, if
+   another value ask before changing it, never duplicate the key. Waves order lowest first, so the provider's `"-1"`
+   must be LOWER than the consumers' (default `0` when the annotation is absent). Confirm `ServerSideApply=true` is in
+   `syncOptions` (the template sets it; CRDs are large and need it). Do not edit the template's placeholders.
 6. Create `environments/<env>/values/<app>.yaml` if absent, with content:
    ```yaml
    # Per-environment overrides for <app> in <env>. Nest under the chart name.
    ```
+   If a chart-notes section (`${CLAUDE_PLUGIN_ROOT}/skills/values-review/reference/chart-notes.md`) names a
+   "local clusters only" override for this chart (e.g. metrics-server `--kubelet-insecure-tls`) and `$CTX` is a local
+   cluster, put it here, commented `# local clusters only — do not copy to prod`.
 7. Verify:
    ```bash
    kubectl --context "$CTX" apply --dry-run=client -f environments/<env>/apps/<app>.yaml
