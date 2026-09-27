@@ -74,7 +74,7 @@ with the root-cause / evidence / fix summary.
      a `kubectl edit` / `scale` / workload-`patch` workaround.
 7. If `--fix` was passed (and the fix is a values change), do it in this order:
    1. Require a clean tree: `git status --porcelain` must be empty, otherwise stop and ask.
-   2. `git switch -c fix/<app>-<slug>`, where `<slug>` is the kebab-case root cause
+   2. `git switch -c fix/<app>-<slug>` (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`), where `<slug>` is the kebab-case root cause
       (e.g. `bad-image-tag`).
    3. Edit exactly one values file (the one chosen above).
    4. Render on a temp copy (the script builds dependencies there with a private Helm repo
@@ -83,7 +83,8 @@ with the root-cause / evidence / fix summary.
       bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" "charts/<app>" <app> <dest-namespace> --values "environments/<env>/values/<app>.yaml" | grep -n 'image:'
       ```
       It must render without error, and the grep must show the NEW value (adapt the
-      pattern to the changed key). If the old value still shows, the key is at the wrong nesting: fix it.
+      pattern to the changed key: grep for the specific key's rendered form (an image tag → `image:`, extra flags →
+      the flag itself, e.g. `grep -n 'port-metrics'`), never a generic `args`). If the old value still shows, the key is at the wrong nesting: fix it.
    5. `git add environments/<env>/values/<app>.yaml`, then commit.
    6. **Checkpoint:** `> About to push fix/<app>-<slug> and open a PR. Proceed?`
    7. Push, then open the PR (body: root cause, evidence line, the one-line diff). Follow

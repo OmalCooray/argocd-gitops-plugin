@@ -34,7 +34,7 @@ summary.
 ## Steps
 
 1. Load skill `argocd-repo-conventions`.
-2. `git switch -c deploy/<app>-<env>`.
+2. `git switch -c deploy/<app>-<env>`. (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`)
 3. Determine `TARGET_REVISION`:
    - dev-like environment (name in {`dev`, `data-platform`, `staging`} or the
      repo's single env) → the default branch.

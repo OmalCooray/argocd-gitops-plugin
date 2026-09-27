@@ -63,6 +63,8 @@ a fix PR or clearing a sync, no open-ended polling.
 
 ## Notes
 
+- After a fix PR is merged, Argo CD can take up to ~3-4 minutes to notice it (observed live: 3m40s) unless refreshed. The first probes can still show the old state: refresh first (already the default trigger) and do not treat unchanged state in the first 1–2 probes as "stuck".
+
 - Fixes are git changes only. Allowed direct cluster actions: trigger/clear a
   sync, `annotate refresh`, create a missing out-of-band Secret. Never edit /
   scale / patch a workload, disable a probe, or drop replicas to force green.

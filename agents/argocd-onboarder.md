@@ -73,7 +73,7 @@ directory, from nothing to an open PR.
 1. Confirm the Preconditions passed (they were checked before step 0); stop and report on the first failure.
 2. Resolve chart: name, exact version, Helm repo URL (ArtifactHub via WebFetch if
    needed). Prefer official repos.
-3. `git switch -c onboard/<app>-<env>`.
+3. `git switch -c onboard/<app>-<env>`. (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`)
 4. Scaffold catalog with the renderer script (errors on a missing or unused variable):
    ```bash
    python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/Chart.yaml.tmpl" charts/<app>/Chart.yaml \

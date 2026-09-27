@@ -27,9 +27,17 @@ the PR, end with a summary.
 
 ## Steps
 
-1. Load skills `argocd-extra-manifests` and `argocd-repo-conventions`. Follow the
-   authoring checklist.
-2. Branch: `git switch -c add-manifest/<app>-<kind-slug>`.
+1. **Classify the request** (before any branch or render). Load skills `argocd-extra-manifests` and
+   `argocd-repo-conventions`. The starter kinds `servicemonitor` / `podmonitor` are not privileged: skip the rest of
+   this step. For a free-text kind, apply the **privileged-kind guardrail** now; a refusal stops the command here,
+   before a branch exists or anything is rendered.
+   A kind is *privileged* if it is: a ClusterRole or ClusterRoleBinding (always); a namespaced Role/RoleBinding that has `*` in verbs, resources or apiGroups, grants any of `secrets`, `pods/exec`, `pods/attach`, `serviceaccounts/token`, or the verbs `escalate`, `bind`, `impersonate`, or binds a ClusterRole other than the built-in read-only `view`; any rule with `*` verbs or resources; any binding of `cluster-admin`, `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters`; a Validating/MutatingWebhookConfiguration; a CRD; or a workload running `privileged: true` / `hostPath` / `hostNetwork`. A benign namespaced Role (e.g. read ConfigMaps in its own namespace) is not privileged: it needs no extra checkpoint but still follows the normal gate/values pattern. For a privileged kind:
+   - print one line saying exactly what it grants and to whom;
+   - default its values gate to `enabled: false`;
+   - refuse outright, with no override, even if the user insists or says it is intentional, any binding of `cluster-admin` or `*` on `*` to `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters` (do not author it);
+   - judge the effective grant, not names: a binding is refused if the role it references, whether defined in this manifest or an existing ClusterRole, resolves to `cluster-admin` or to `*` on `*` (any `apiGroups`/`resources`/`verbs` all `*`). Subject spelling is irrelevant: kind `Group`, `User` or `ServiceAccount`, with or without the `system:` prefix, including `system:serviceaccounts` and `system:serviceaccounts:<ns>`;
+   - checkpoint `> This grants <X> to <Y>. Proceed?` before committing.
+2. Branch: `git switch -c add-manifest/<app>-<kind-slug>` (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`).
 3. Render once with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns>`
    (release name `<app>` and `-n <dest-ns>`: Argo CD uses the Application name as
    the release name, and the default `release-name` gives wrong names; the script
@@ -43,18 +51,14 @@ the PR, end with a summary.
      metrics port and the app serves no `/metrics`, STOP — report that the app
      exposes no scrapeable metrics (needs an exporter or the chart's metrics
      option first; that's the `argocd-observability` workflow, not this command).
-4. Scaffold:
+4. Scaffold. **Re-run check first:** if `charts/<app>/templates/<kind>.yaml` (or the `serviceMonitor`/`podMonitor`
+   values stanza) already exists, diff it against what step 4 would write (the starter, or your authored file). Identical:
+   report `already present` and skip to step 7. Different: show the diff and ask; never overwrite silently.
    - starter kind: copy
      `${CLAUDE_PLUGIN_ROOT}/skills/argocd-extra-manifests/reference/starters/<kind>.yaml`
      → `charts/<app>/templates/<kind>.yaml` verbatim.
-   - free-text kind: first apply the **privileged-kind guardrail** below, then
-     author `charts/<app>/templates/<slug>.yaml` from the `argocd-extra-manifests` checklist (gated, no subchart `_helpers`).
-     A kind is *privileged* if it is: a ClusterRole or ClusterRoleBinding (always); a namespaced Role/RoleBinding that has `*` in verbs, resources or apiGroups, grants any of `secrets`, `pods/exec`, `pods/attach`, `serviceaccounts/token`, or the verbs `escalate`, `bind`, `impersonate`, or binds a ClusterRole other than the built-in read-only `view`; any rule with `*` verbs or resources; any binding of `cluster-admin`, `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters`; a Validating/MutatingWebhookConfiguration; a CRD; or a workload running `privileged: true` / `hostPath` / `hostNetwork`. A benign namespaced Role (e.g. read ConfigMaps in its own namespace) is not privileged: it needs no extra checkpoint but still follows the normal gate/values pattern. For a privileged kind:
-     - print one line saying exactly what it grants and to whom;
-     - default its values gate to `enabled: false`;
-     - refuse outright, with no override, even if the user insists or says it is intentional, any binding of `cluster-admin` or `*` on `*` to `system:authenticated`, `system:unauthenticated`, `system:anonymous` or `system:masters` (do not author it);
-     - judge the effective grant, not names: a binding is refused if the role it references, whether defined in this manifest or an existing ClusterRole, resolves to `cluster-admin` or to `*` on `*` (any `apiGroups`/`resources`/`verbs` all `*`). Subject spelling is irrelevant: kind `Group`, `User` or `ServiceAccount`, with or without the `system:` prefix, including `system:serviceaccounts` and `system:serviceaccounts:<ns>`;
-     - checkpoint `> This grants <X> to <Y>. Proceed?` before committing.
+   - free-text kind (already classified in step 1): author `charts/<app>/templates/<slug>.yaml` from the
+     `argocd-extra-manifests` checklist (gated, no subchart `_helpers`), honouring the guardrail rules above.
 5. Add the gating values stanza to `charts/<app>/values.yaml` as a **top-level**
    key (not nested under the subchart) — for a ServiceMonitor:
    `serviceMonitor: {enabled: <bool>, selectorLabels: {...}, port: <name>, path: /metrics, interval: 30s}`
@@ -84,10 +88,11 @@ the PR, end with a summary.
      or `kube-prometheus-stack` for the full stack. Then tell the user how to turn it on later: set
      `serviceMonitor.enabled: true` (PodMonitor: `podMonitor.enabled`) in `environments/<env>/values/<app>.yaml` (or the
      chart values for all envs) **after** the provider app has synced, and re-run this command to have it verify.
-7. Verify:
+7. Verify — render only your new template, in the destination namespace (the script passes `-n <dest-ns>` to
+   Helm), with the gate forced on so a disabled gate does not render nothing:
    ```bash
-   helm template <app> charts/<app>            # your manifest renders
-   helm template <app> charts/<app> | kubectl --context "$CTX" apply --dry-run=server -f -   # CRD accepts it (if a cluster is reachable)
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns> -- -s templates/<kind>.yaml --set <gate>.enabled=true   # your manifest renders
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns> -- -s templates/<kind>.yaml --set <gate>.enabled=true | kubectl --context "$CTX" apply --dry-run=server --namespace <dest-ns> -f -   # CRD accepts it (if a cluster is reachable)
    ```
 8. Bump `charts/<app>/Chart.yaml` `version`.
 9. Checkpoint → commit → push → `gh pr create` (title `Add <kind> to <app>`,

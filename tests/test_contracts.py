@@ -744,3 +744,98 @@ def test_onboarder_live_verification_fixes():
     heads = [ln for ln in n.splitlines() if ln.startswith("## ")]
     assert any(h.startswith("## cert-manager") for h in heads)
     assert "cert-manager.crds.enabled" in n and "cert-manager.crds.keep" in n and "ClusterIssuer" in n
+
+
+# ---- live-verification friction fixes -------------------------------------------------------
+
+def test_every_git_switch_c_follows_the_branch_exists_rule():
+    ref = read("references/interaction-style.md")
+    assert "## Branch names on re-run" in ref
+    assert "git branch --merged" in ref and "-2" in ref and "stop and ask" in ref
+    hits = [f for f in list((ROOT / "commands").glob("*.md")) + list((ROOT / "agents").glob("*.md"))
+            if "git switch -c" in f.read_text(encoding="utf-8")]
+    assert len(hits) >= 8
+    for f in hits:
+        assert "branch-exists rule" in f.read_text(encoding="utf-8"), f.name
+
+
+def test_add_manifest_classifies_first_and_handles_reruns():
+    m = read("commands/argocd-add-manifest.md")
+    steps = m.split("## Steps", 1)[1]
+    assert steps.index("Classify the request") < steps.index("git switch -c")
+    assert steps.index("Classify the request") < steps.index("render_chart.sh")
+    assert steps.index("privileged-kind guardrail") < steps.index("git switch -c")
+    assert steps.count("A kind is *privileged* if") == 1
+    assert "`servicemonitor` / `podmonitor`" in steps.split("Classify the request", 1)[1].split("git switch -c", 1)[0]
+    assert "already present" in m and "diff" in m
+    verify = m.split("7. Verify", 1)[1].split("8. Bump", 1)[0]
+    assert "-s templates/<kind>.yaml" in verify
+    assert '--namespace <dest-ns>' in verify and "-n <dest-ns>" in verify
+    assert "helm template <app> charts/<app>" not in verify
+
+
+def test_add_dashboard_name_is_a_command_argument_only():
+    d = read("commands/argocd-add-dashboard.md")
+    assert "command argument only" in d and "does not accept `--name`" in d
+
+
+def test_verification_greps_target_the_rendered_form():
+    for rel in ("commands/argocd-doctor.md", "commands/argocd-review-values.md"):
+        t = read(rel)
+        assert "rendered form" in t and "never a generic `args`" in t, rel
+
+
+def test_rollout_fix_points_at_doctor_fix_flow():
+    r = read("skills/argocd-rollout/SKILL.md")
+    assert "`--fix` flow in `commands/argocd-doctor.md`" in r
+    for line in r.splitlines():
+        if "helm template" in line:
+            assert "render_chart.sh" in line, line
+
+
+def test_sync_notes_argocd_detection_delay():
+    s = read("commands/argocd-sync.md")
+    assert "3m40s" in s and "1–2 probes" in s
+
+
+def test_install_sh_validates_context_against_kubeconfig(tmp_path):
+    import json
+    import os
+    import shutil
+    import subprocess
+    import sys
+    bash = shutil.which("bash")
+    if bash is None:
+        import pytest
+        pytest.skip("bash not available")
+    sys.path.insert(0, str(ROOT / "tests"))
+    from render import render
+    vars_ = json.loads((ROOT / "tests/fixtures/podinfo.vars.json").read_text())
+    script = tmp_path / "bootstrap" / "install.sh"
+    script.parent.mkdir()
+    script.write_text(render(read("templates/install.sh.tmpl"), vars_), encoding="utf-8", newline="\n")
+    stubs = tmp_path / "stubs"
+    stubs.mkdir()
+    log = tmp_path / "calls.log"
+    (stubs / "kubectl").write_text(
+        '#!/usr/bin/env bash\n'
+        'if [ "$1 $2 $3 $4" = "config get-contexts -o name" ]; then echo good-ctx; exit 0; fi\n'
+        f'echo "kubectl $*" >> "{log.as_posix()}"\nexit 0\n', encoding="utf-8", newline="\n")
+    (stubs / "helm").write_text(f'#!/usr/bin/env bash\necho "helm $*" >> "{log.as_posix()}"\nexit 0\n',
+                                encoding="utf-8", newline="\n")
+    for n in ("kubectl", "helm"):
+        os.chmod(stubs / n, 0o755)
+    env = dict(os.environ, PATH=str(stubs) + os.pathsep + os.environ["PATH"])
+
+    def run(*args):
+        return subprocess.run([bash, script.as_posix(), *args], capture_output=True, text=True,
+                              env=env, timeout=60)
+
+    p = run()
+    assert p.returncode != 0 and not log.exists()
+    for bad in ("--help", "a b"):
+        p = run(bad)
+        assert p.returncode != 0 and "not found" in p.stderr and not log.exists(), bad
+    run("good-ctx")
+    assert log.exists()
+    assert log.read_text().splitlines()[0].startswith("kubectl --context good-ctx cluster-info")

@@ -16,7 +16,8 @@ the PR, end with a summary.
 - `$1` — `<app>`; `charts/<app>/Chart.yaml` must exist.
 - `$2` — `<source>`: a grafana.com dashboard id (`12345` or `12345:8`), an
   `https://` URL, or a local `.json` path.
-- `--name <slug>` — dashboard file slug (default: from the dashboard title).
+- `--name <slug>` — dashboard file slug (default: from the dashboard title). This is a command argument only: it sets
+  the `<slug>` in `--out charts/<app>/grafana-dashboards/<slug>.json`; `fetch_dashboard.py` does not accept `--name`.
 - `--env <env>` — optional; used for the metrics check and the sync suggestion.
 
 ## Preconditions
@@ -35,7 +36,7 @@ the PR, end with a summary.
    No metrics → **STOP**: report the dashboard would be empty; point at
    `/argocd-add-manifest` (to add a ServiceMonitor) or the exporter workflow
    (`/argocd-observe`, separate — planned) if the app emits nothing.
-3. Branch `git switch -c add-dashboard/<app>-<slug>`.
+3. Branch `git switch -c add-dashboard/<app>-<slug>`. (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`).
 4. Fetch + normalize:
    ```bash
    python "${CLAUDE_PLUGIN_ROOT}/skills/argocd-grafana-dashboards/scripts/fetch_dashboard.py" "<source>" \

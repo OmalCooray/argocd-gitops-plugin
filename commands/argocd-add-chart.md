@@ -27,7 +27,7 @@ opening the PR, end with a summary.
 ## Steps
 
 1. Load skills `helm-chart-onboarding` and `argocd-repo-conventions`.
-2. Create a branch: `git switch -c add-chart/<app>`.
+2. Create a branch: `git switch -c add-chart/<app>`. (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`)
 3. Follow `helm-chart-onboarding` steps 1–4 to determine `CHART_NAME`,
    `CHART_VERSION` (exact), `CHART_REPO_URL`.
 4. Render with the renderer script (errors on a missing or unused variable):

@@ -41,7 +41,7 @@ silent background jobs or polling loops.
    ```bash
    python "${CLAUDE_PLUGIN_ROOT}/scripts/render_template.py" "${CLAUDE_PLUGIN_ROOT}/templates/install.sh.tmpl" bootstrap/install.sh ARGOCD_NAMESPACE="$ARGOCD_NS" ARGOCD_CHART_VERSION=<chart-version> ENV_NAME=<env> GITOPS_REPO_URL=<repo-url>
    ```
-5. Show the rendered script. Work on a branch and commit it, marking it
+5. Show the rendered script. Work on a branch (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`) and commit it, marking it
    executable in git (Windows records mode 100644 otherwise):
    ```bash
    git switch -c bootstrap/install-<env>

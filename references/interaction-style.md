@@ -43,6 +43,13 @@ in control of the big moves. This overrides any default toward "just do it".
 A checkpoint is `> About to <X>. Proceed?` — not a paragraph. If the person
 already said "go ahead and don't ask", honour that for the rest of the run.
 
+## Branch names on re-run
+
+Before `git switch -c <name>`, check whether `<name>` already exists locally (`git branch --list <name>`) or on
+origin (`git ls-remote --heads origin <name>`). Never reuse it blindly. If it is already merged (`git branch --merged
+<default-branch>` lists it), delete the local branch and pick a fresh name by suffixing `-2` (then `-3`...). If it is NOT
+merged, stop and ask what to do: it may hold someone's work.
+
 ## Never
 
 - background an install/sync/wait and move on

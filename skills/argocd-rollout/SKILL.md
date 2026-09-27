@@ -92,8 +92,9 @@ Stop the watch as soon as one of these is true:
 - Run the `argocd-troubleshooting` flow: drill to the failing object, match the
   signature, name the **root cause + evidence + fix**.
 - The fix is a **git change** (a values key, a manifest annotation, a missing
-  Secret created out of band). Make it on a branch, `helm template` to confirm it
-  renders, open a PR (checkpoint before push), merge (checkpoint).
+  Secret created out of band). Make the fix with the `--fix` flow in `commands/argocd-doctor.md` (branch
+  `fix/<app>-<slug>`, one values file, render via
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" ...`, stage by path, checkpoint, PR), then merge (checkpoint).
 - **Deadlocked sync** (op message "waiting for healthy state of X" where X can
   never be healthy until the fix lands): after merging, clear the stuck op, then
   re-trigger:

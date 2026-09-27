@@ -72,7 +72,7 @@ opening the PR (only with `--write`), end with the findings table and verdict.
 6. Print a one-line verdict: `<app> @ <profile>: <n> blockers, <m> warnings`.
 7. If `--write`:
    1. Require a clean tree: `git status --porcelain` must be empty, otherwise stop and ask.
-   2. `git switch -c review/<app>-<env>-<profile>`.
+   2. `git switch -c review/<app>-<env>-<profile>`. (branch-exists rule: `${CLAUDE_PLUGIN_ROOT}/references/interaction-style.md`)
    3. Merge the recommended values keys into `environments/<env>/values/<app>.yaml`.
       Wrapper chart: nest under the values key from step 2. Own-app chart: **top-level** keys, no
       nesting. Never touch the base `charts/<app>/values.yaml` for env-specific values.
@@ -87,7 +87,8 @@ opening the PR (only with `--write`), end with the findings table and verdict.
       comment-only overlay you just created, `git switch <orig-branch>`, delete the empty, unpushed branch
       (`git branch -D review/<app>-<env>-<profile>`), and stop. Do not commit.
    6. Re-render with step 4's command (temp copy) and confirm it still succeeds and the changed
-      keys show up in the render (e.g. pipe to `grep -n 'replicas:'`).
+      keys show up in the render (e.g. pipe to `grep -n 'replicas:'`). Grep for the specific key's rendered form (an image tag → `image:`, extra
+      flags → the flag itself), never a generic `args`.
    7. `git add environments/<env>/values/<app>.yaml`, then `git commit`.
    8. **Checkpoint:** `> About to push review/<app>-<env>-<profile> and open a PR. Proceed?`
    9. Push and open the PR titled `Harden <app> values for <env>`. Write the PR body
