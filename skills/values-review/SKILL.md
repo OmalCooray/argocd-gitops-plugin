@@ -16,10 +16,8 @@ profiles and produce a findings list. Optionally emit a hardened overlay.
 2. Get the **effective values** the way Argo CD will see them:
    ```bash
    helm show values <chart> --repo <repo-url> --version <version> > upstream.yaml   # reference
-   helm template charts/<app> \
-     -f environments/<env>/values/<app>.yaml \
-     --api-versions policy/v1/PodDisruptionBudget \
-     > rendered.yaml
+   # temp-copy render (never builds in the user's tree); release name = app, -n = dest namespace
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns>      --values environments/<env>/values/<app>.yaml      -- --api-versions policy/v1/PodDisruptionBudget > rendered.yaml
    ```
    Review `rendered.yaml` (actual manifests) plus the two values files. Upstream
    defaults tell you which knobs exist.

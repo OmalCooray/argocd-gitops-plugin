@@ -4,8 +4,9 @@
 #   list_crds.sh <chart-dir> [--namespace <ns>] [--values <file>]
 #   list_crds.sh --filter          # rendered YAML on stdin -> CRD names (no helm needed)
 #
-# The chart is copied to a temp dir so the caller's Chart.lock / charts/ are never touched;
-# `helm template` needs --include-crds or a chart's crds/ directory is silently skipped.
+# Rendering is delegated to render_chart.sh (temp copy, private Helm repo config: the caller's
+# Chart.lock / charts/ / repo list are never touched); --include-crds is needed or a chart's
+# crds/ directory is silently skipped.
 # stdout: CRD names only, sorted, unique, one per line (empty = the chart renders none).
 # Exit 0 on success (even with no CRDs); exit 1 with one `error:` line on stderr if helm fails.
 set -euo pipefail
@@ -42,16 +43,9 @@ done
 
 chart="${chart%/}"
 name="$(basename "$(cd "$chart" && pwd)")"
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
-cp -r "$chart" "$tmp/$name"
-
-if ! helm dependency build "$tmp/$name" >&2; then
-  echo "error: helm dependency build failed for $chart" >&2; exit 1
-fi
-args=(template "$name" "$tmp/$name" -n "$ns" --include-crds)
-[ -z "$values" ] || args+=(-f "$values")
-if ! helm "${args[@]}" > "$tmp/rendered.yaml" 2> "$tmp/err"; then
-  echo "error: helm template failed for $chart: $(head -c 300 "$tmp/err" | tr '\n' ' ')" >&2; exit 1
-fi
-filter < "$tmp/rendered.yaml"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+rargs=("$chart" "$name" "$ns" --include-crds)
+[ -z "$values" ] || rargs+=(--values "$values")
+rendered="$(bash "$here/render_chart.sh" "${rargs[@]}")" || exit 1   # render_chart.sh already printed the `error:` line
+printf '%s
+' "$rendered" | filter

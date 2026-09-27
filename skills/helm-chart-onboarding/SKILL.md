@@ -42,9 +42,9 @@ ArtifactHub API (`reference/artifacthub-api.md`), which lists `available_version
   helm search repo tmp/<chart> --versions -o json
   unset HELM_REPOSITORY_CONFIG HELM_REPOSITORY_CACHE   # when done
   ```
-  `helm dependency build` with a URL repo (no alias) does not touch the user's repo list:
-  with the two variables set the cache is private too; without them it only writes to
-  the user's Helm cache.
+  Helm 3.x needs a repo definition even for a URL dependency, so never build
+  chart dependencies by hand: `scripts/helm_deps.sh` and `scripts/render_chart.sh`
+  register the URLs in a private repo config for you (the user's repo list is untouched).
 - Default to the **latest stable** (non-`-rc`, non-`-beta`) unless the user names
   one, or unless the latest requires a Kubernetes version newer than the target
   cluster (`helm show chart ... | grep kubeVersion`).
@@ -89,12 +89,12 @@ name), because that is how Helm routes subchart values:
 ## Step 5 — verify locally before committing
 
 ```bash
-helm dependency build charts/<app>
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/helm_deps.sh" charts/<app>
 helm lint charts/<app>
-helm template charts/<app> | kubectl --context "$CTX" apply --dry-run=client -f -   # if a cluster is reachable
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns> | kubectl --context "$CTX" apply --dry-run=client -f -   # if a cluster is reachable
 ```
 
-All three must pass. `helm dependency build` writes `Chart.lock` and
+All three must pass. `helm_deps.sh` (a dependency build) writes `Chart.lock` and
 `charts/*.tgz`. Commit `Chart.yaml`, `values.yaml`, and `Chart.lock`. Never commit
 `charts/<app>/charts/` or `*.tgz` — the scaffolded `.gitignore` already excludes
 them.

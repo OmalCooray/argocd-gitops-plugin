@@ -100,11 +100,10 @@ is global) but compute names from the wrong (wrapper) context/values.
      interval: 30s
    ```
 4. Never `include` a subchart helper (step "Template context").
-5. Verify: `helm dependency build charts/<app>` (or `helm dependency update
-   charts/<app>` if there is no `Chart.lock` yet) →
-   `helm template <app> charts/<app>` renders your manifest. If a cluster with
+5. Verify: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns>`
+   renders your manifest (it builds dependencies in a temp copy with a private Helm repo config). If a cluster with
    the CRD is reachable:
-   `helm template <app> charts/<app> | kubectl --context "$CTX" apply --dry-run=server -f -`.
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns> | kubectl --context "$CTX" apply --dry-run=server -f -`.
 6. Bump `charts/<app>/Chart.yaml` `version`.
 
 ## Privileged kinds

@@ -30,10 +30,10 @@ the PR, end with a summary.
 1. Load skills `argocd-extra-manifests` and `argocd-repo-conventions`. Follow the
    authoring checklist.
 2. Branch: `git switch -c add-manifest/<app>-<kind-slug>`.
-3. `helm dependency build charts/<app>` then
-   `helm template <app> charts/<app>` once (release name `<app>` — Argo CD uses
-   the Application name as the release name; the default `release-name` gives
-   wrong names). Read the real Service names, the **named** ports, and the
+3. Render once with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <dest-ns>`
+   (release name `<app>` and `-n <dest-ns>`: Argo CD uses the Application name as
+   the release name, and the default `release-name` gives wrong names; the script
+   renders a temp copy and never touches your tree). Read the real Service names, the **named** ports, and the
    Service/pod labels the new manifest must target.
    - If the render shows the names are already `<app>-<component>`, use them
      as-is and do not add a no-op `fullnameOverride`; if not and the chart honors

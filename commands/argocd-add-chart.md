@@ -39,7 +39,7 @@ opening the PR, end with a summary.
    ```
 5. Verify (must pass — do not skip):
    ```bash
-   helm dependency build charts/<app>
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/helm_deps.sh" charts/<app>   # builds in place; private Helm repo config
    helm lint charts/<app>
    ```
    If a cluster is reachable also run

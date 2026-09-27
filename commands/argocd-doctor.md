@@ -77,11 +77,10 @@ with the root-cause / evidence / fix summary.
    2. `git switch -c fix/<app>-<slug>`, where `<slug>` is the kebab-case root cause
       (e.g. `bad-image-tag`).
    3. Edit exactly one values file (the one chosen above).
-   4. Render on a temp copy so the working tree's `Chart.lock` is not rewritten:
+   4. Render on a temp copy (the script builds dependencies there with a private Helm repo
+      config, so `Chart.lock` and your repo list are untouched):
       ```bash
-      tmp="$(mktemp -d)"; cp -r "charts/<app>" "$tmp/"; helm dependency build "$tmp/<app>"
-      helm template <app> "$tmp/<app>" -n <dest-namespace> -f "environments/<env>/values/<app>.yaml" | grep -n 'image:'
-      rm -rf "$tmp"
+      bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" "charts/<app>" <app> <dest-namespace> --values "environments/<env>/values/<app>.yaml" | grep -n 'image:'
       ```
       It must render without error, and the grep must show the NEW value (adapt the
       pattern to the changed key). If the old value still shows, the key is at the wrong nesting: fix it.

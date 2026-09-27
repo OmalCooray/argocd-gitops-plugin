@@ -81,12 +81,12 @@ directory, from nothing to an open PR.
    (normally the in-cluster destination `https://kubernetes.default.svc`), and the env is not named `prod`/`production`.
    Otherwise put the override in the hand-off as a recommendation, not in git.
 5. Verify catalog. Create the lock once in the catalog entry, then render-check on a temp copy so the
-   working tree is not rewritten:
+   working tree is not rewritten (both scripts use a private Helm repo config, so a dependency URL that is
+   not in the user's repo list still works):
    ```bash
-   helm dependency build charts/<app>      # creates Chart.lock (committed); URL repos only use the Helm cache, no repo-list change
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/helm_deps.sh" charts/<app>   # builds in place, creates Chart.lock (committed); private Helm repo config, your repo list is untouched
    helm lint charts/<app>
-   tmp="$(mktemp -d)"; cp -r "charts/<app>" "$tmp/"; helm dependency build "$tmp/<app>"   # same: no env vars needed to protect the repo list
-   helm template <app> "$tmp/<app>" -n <app-namespace> >/dev/null; rm -rf "$tmp"
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh" charts/<app> <app> <app-namespace> >/dev/null   # renders a temp copy: working tree untouched
    ```
    All must pass; fix and re-run within the 3-attempt cap.
 6. Deploy wiring: read from `.claude/CLAUDE.md` `GITOPS_REPO_URL` (the "GitOps repo

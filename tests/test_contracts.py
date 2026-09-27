@@ -435,8 +435,8 @@ def test_doctor_fix_flow_is_explicit_and_render_is_verified():
     assert "[--fix]" in d.split("---")[1]
     fix = _step(d, 7)
     for needle in ("git status --porcelain", "git switch -c fix/", "<slug>", "git add environments/",
-                   'helm template <app> "$tmp/<app>" -n', 'helm dependency build "$tmp/<app>"',
-                   "grep -n", "wrong nesting", 'rm -rf "$tmp"', "About to push fix/", "no-remote-fallback.md"):
+                   '"${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh"', "<dest-namespace>",
+                   "grep -n", "wrong nesting", "About to push fix/", "no-remote-fallback.md"):
         assert needle in fix, needle
     assert "dependencies[0].name" in d and "OWN-APP" in d
     assert "the way `/argocd-deploy` does" not in d
@@ -570,19 +570,26 @@ def test_list_crds_script_is_the_single_crd_detector():
 
 def test_review_values_handles_own_charts_release_names_and_noop_write():
     r = read("commands/argocd-review-values.md")
-    for needle in ("own-app chart", "helm template <app>", "-n <dest-ns>", "mktemp -d", "nothing to harden"):
+    for needle in ("own-app chart", "render_chart.sh", "-n <dest-ns>", "mktemp -d", "nothing to harden"):
         assert needle in r, needle
     s = read("skills/values-review/SKILL.md")
     assert "replicaCount > 1" in s
     # temp-copy block, no in-tree build
-    assert 'rm -rf "$tmp"' in r
-    assert "helm dependency build charts/<app>" not in r
+    assert '"${CLAUDE_PLUGIN_ROOT}/scripts/render_chart.sh"' in r
+    assert "helm dependency build" not in r
     # ordering
-    assert r.index("own-app chart") < r.index("helm show values")
+    assert r.index("2. Read `charts/<app>/Chart.yaml`") < r.index("3. Wrapper charts only")
+    assert r.index("**own-app chart**") < r.index("helm show values")
     assert r.index("nothing to harden") < r.index("git commit")
     # --write flow
-    for needle in ("git status --porcelain", "review/<app>-<env>-<profile>", "needs a chart change", "git diff --quiet"):
+    for needle in ("git status --porcelain", "git status --porcelain -- environments/", "review/<app>-<env>-<profile>",
+                   "needs a chart change", "git branch -D", "git branch --show-current", "<orig-branch>",
+                   "dependencies[0].alias", "grep -c 'kind: PodDisruptionBudget'"):
         assert needle in r, needle
+    assert "git diff --quiet" not in r and "get secret" not in r and " -o yaml" not in r
+    for line in r.splitlines():
+        if "kubectl" in line:
+            assert '--context "$CTX"' in line, line
     # PR body spec
     assert "verified by" in r
     # skill PDB note sits with the HA rubric
@@ -590,3 +597,17 @@ def test_review_values_handles_own_charts_release_names_and_noop_write():
     assert "PodDisruptionBudget" in sentence and "together" in sentence
     ha = s.index("**Availability**")
     assert abs(s.index("replicaCount > 1") - ha) < 900
+
+
+def test_no_inline_helm_dependency_build_prose():
+    import glob
+    for f in glob.glob(str(ROOT / "commands" / "*.md")) + glob.glob(str(ROOT / "agents" / "*.md")) +             glob.glob(str(ROOT / "skills" / "**" / "*.md"), recursive=True):
+        text = pathlib.Path(f).read_text(encoding="utf-8")
+        assert "helm dependency build" not in text and "helm dependency update" not in text, f
+    for rel, script in (("agents/argocd-onboarder.md", "helm_deps.sh"), ("agents/argocd-onboarder.md", "render_chart.sh"),
+                        ("commands/argocd-add-chart.md", "helm_deps.sh"), ("commands/argocd-doctor.md", "render_chart.sh"),
+                        ("commands/argocd-add-manifest.md", "render_chart.sh"),
+                        ("skills/helm-chart-onboarding/SKILL.md", "helm_deps.sh"),
+                        ("skills/values-review/SKILL.md", "render_chart.sh")):
+        assert f'bash "${{CLAUDE_PLUGIN_ROOT}}/scripts/{script}"' in read(rel), (rel, script)
+    assert "render_chart.sh" in read("scripts/list_crds.sh") and "helm dependency" not in read("scripts/list_crds.sh")
