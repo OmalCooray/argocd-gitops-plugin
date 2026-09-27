@@ -161,3 +161,34 @@ def test_rollout_has_plain_sync_then_force_ladder():
     assert '"apply":{}' in roll                        # plain sync first
     assert "second checkpoint" in roll.lower()
     assert "DELETE and RECREATE" in roll
+
+
+def test_audit_covers_root_env_validation_and_multisource():
+    a = read("commands/argocd-audit.md")
+    for needle in ("environments/<env>/root.yaml", "not found; available environments",
+                   "status.sync.revisions", "spec.sources", "missing", "orphaned",
+                   "Managed by", "top-level array"):
+        assert needle in a, needle
+
+
+def test_audit_steps_are_ordered_and_safe():
+    a = read("commands/argocd-audit.md")
+    steps = a.split("## Steps", 1)[1]
+    assert steps.index("Validate the environment") < steps.index("declared set")
+    assert "Read-only" in a
+    assert "Never run `argocd app sync` for an app that is missing" in a
+    assert "commands/argocd-sync.md" in steps  # reuses the per-source comparison rules
+    assert "unknown (could not reach the repo)" in steps
+    assert "root app never applied" in steps and "/argocd-bootstrap" in steps
+    assert "kubectl apply (no root app)" in steps and "unmanaged by GitOps" in steps
+    # every 'argocd app sync' mention is a prohibition, never a recommendation
+    for line in a.splitlines():
+        if "argocd app sync" in line:
+            assert re.search(r"[Nn]ever", line), line
+
+
+def test_audit_summary_line_template_is_complete():
+    a = read("commands/argocd-audit.md")
+    line = next(l for l in a.splitlines() if "declared (+root)" in l)
+    for word in ("declared", "live", "missing", "orphaned", "drifted", "unhealthy", "unmanaged"):
+        assert word in line, word
